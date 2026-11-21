@@ -1,0 +1,826 @@
+// Regulars — WhatsApp-native loyalty & retention platform
+// Data model covers: business owners, multi-sector businesses (each with one
+// or more physical locations), customers passively captured from WhatsApp,
+// their message/visit history, computed behavioral segments, the Hinglish AI
+// calling scripts triggered per segment, and platform operations (billing,
+// usage tracking, system logs, password resets).
+//
+// SQLite (the default dev datasource) has no native enum type, so the
+// enum-shaped fields below are plain Strings; their valid values are the
+// TypeScript union types in lib/types.ts, enforced at the application
+// boundary (zod schemas on API routes) rather than by the database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  // A password reset signs out every session issued before this moment.
+  sessionsValidFrom DateTime?
+  name         String
+  /// Role: OWNER | MANAGER | SUPER_ADMIN. SUPER_ADMIN is not self-assignable
+  /// via signup — granted via prisma/promote-admin.ts by someone with server
+  /// access. MANAGER logins are created by the owner (Dashboard → Team).
+  role         String     @default("OWNER")
+  /// Mobile (E.164 or digits). For a MANAGER: the number they WhatsApp the
+  /// business number from ("add Rahul 98…"). For an OWNER: one more number
+  /// their approval replies are recognised from.
+  phone        String?
+  /// MANAGER only: the one business this staff login works in.
+  managedBusinessId String?
+  managedBusiness   Business? @relation("BusinessManagers", fields: [managedBusinessId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  businesses   Business[] @relation("BusinessOwner")
+  resetTokens  PasswordResetToken[]
+  offersCreated Offer[]
+
+  @@index([managedBusinessId])
+}
+
+model Business {
+  id      String @id @default(cuid())
+  ownerId String
+  owner   User   @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name    String
+  /// Sector: SALON | GYM | CLINIC | RETAIL | RESTAURANT
+  sector  String
+
+  /// Status: ACTIVE | SUSPENDED. A super admin can suspend a business —
+  /// every one of its locations stops ingesting WhatsApp and its dashboard
+  /// is read-only (see app/api/webhook/whatsapp/route.ts and
+  /// app/dashboard/layout.tsx). A single location can also be individually
+  /// suspended (see Location.status) without suspending the whole business.
+  status String @default("ACTIVE")
+  /// Plan: STARTER | GROWTH | PRO. See PRICING.md. Set automatically when a
+  /// Payment is verified (see lib/billing.ts), or manually by a super admin.
+  plan   String @default("STARTER")
+  /// When the current plan's paid period ends. Null on the free/default
+  /// STARTER plan. Past this date the plan should be treated as lapsed —
+  /// nothing currently auto-downgrades on expiry (see README billing notes).
+  planExpiresAt DateTime?
+
+  // Per-business overrides for lib/segmentation.ts DEFAULT_THRESHOLDS. Null
+  // means "use the platform default" — a super admin can tune these per
+  // business from the admin panel without a code change.
+  atRiskAfterDaysOverride       Int?
+  dormantAfterDaysOverride      Int?
+  establishedVisitCountOverride Int?
+
+  // ── WayneRing AI Front Desk / SMS (Nov 2026) ──────────────────────────
+  /// ISO country, used to read local phone numbers in CSV imports ("CA" → +1).
+  country           String  @default("IN")
+  /// DefaultChannel: WHATSAPP | SMS. Canada texts → SMS; India → WHATSAPP.
+  /// A customer's own preferredChannel overrides this.
+  defaultChannel    String  @default("WHATSAPP")
+  /// Send a Google review request SMS automatically after each VISIT event.
+  autoReviewRequest Boolean @default(false)
+  /// Instagram DMs → booking add-on (sold on top of the plan, switched on by
+  /// a super admin in Admin → Businesses). See lib/instagram.ts.
+  instagramAddon    Boolean @default(false)
+  /// FrontDeskPlan: ANSWER | ANSWER_RETURN | GROW (null = not a Front Desk client).
+  frontDeskPlan     String?
+  /// Included outgoing SMS segments per calendar month (null = no limit set).
+  smsMonthlyLimit   Int?
+  smsOverageRateCad Float   @default(0.05)
+
+  // ── One platform (Bundle A, Nov 2026) ──────────────────────────────────
+  // frontDeskPlan above doubles as the bundle plan. Regulars is the hub:
+  // signup, one bill, single sign-on into the other tools, and automatic
+  // account set-up in each of them (see lib/hub/).
+  /// BundleStatus: NONE | PENDING_PAYMENT | ACTIVE | LAPSED
+  bundleStatus    String    @default("NONE")
+  /// End of the paid bundle period. Tools keep working for a 3-day grace.
+  bundlePaidUntil DateTime?
+  /// Automatic monthly payment. Status: OFF | PENDING | ON | ENDING | FAILED
+  autopayStatus          String    @default("OFF")
+  autopayPlan            String?
+  razorpaySubscriptionId String?   @unique
+  renewalReminderAt      DateTime?
+
+  // ── Products & Bundles (custom bundles, Nov 2026) ──────────────────────
+  // A super admin can build a bundle from any software in the catalog
+  // (Admin → Products & Bundles) and give it to a client. When set, it
+  // replaces frontDeskPlan as "what this business gets". The two fields
+  // below are copied from the bundle so plan checks stay fast; they are
+  // refreshed whenever the bundle is edited (lib/hub/catalog.ts syncBundle).
+  customBundleId String?
+  customBundle   Bundle?   @relation(fields: [customBundleId], references: [id], onDelete: SetNull)
+  /// Comma list of the connected tools in the custom bundle (WAYNERING,GMB…).
+  bundleTools    String    @default("")
+  /// The custom bundle includes the Growth Manager.
+  bundleGrowth   Boolean   @default(false)
+
+  // ── Offer approvals (onboarding flow, Nov 2026) ─────────────────────────
+  // A manager's offer goes out straight away when it is inside these limits;
+  // anything bigger waits for the owner's APPROVE / REJECT on WhatsApp.
+  // Set by the owner (Dashboard → Offers). See lib/offers.ts.
+  /// Highest discount (%) sent without asking the owner.
+  approvalMaxDiscount Int     @default(10)
+  /// Most customers one offer may reach without asking the owner.
+  approvalMaxAudience Int     @default(200)
+  /// Free items / bonus points go out without asking the owner.
+  approvalAutoFreebie Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  locations      Location[]
+  toolAccounts   ToolAccount[]
+  customers      Customer[]
+  messages       Message[]
+  visits         Visit[]
+  callingScripts CallingScript[]
+  callLogs       CallLog[]
+  usageEvents    UsageEvent[]
+  payments       Payment[]
+  systemLogs     SystemLog[]
+  apiKeys        ApiKey[]
+  growthSettings GrowthSettings?
+  growthEvents   GrowthEvent[]
+  growthActions  GrowthAction[]
+  productSetups  ProductSetup[]
+  managers       User[]  @relation("BusinessManagers")
+  offers         Offer[]
+
+  @@index([ownerId])
+  @@index([customBundleId])
+}
+
+model Location {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name    String // e.g. "Andheri branch" — for a single-location business
+  // this is just the business name, auto-created on signup (see
+  // app/api/auth/signup/route.ts) so the common case needs no extra setup.
+  address String?
+
+  // WhatsApp Cloud API config — each location connects its own WhatsApp
+  // Business number. The webhook route matches an inbound event to a
+  // Location (not directly to a Business) via phoneNumberId.
+  whatsappPhoneNumberId String? @unique
+  whatsappAccessToken   String?
+  whatsappVerifyToken   String  @default(cuid())
+
+  // SMS (Twilio) — each location gets its own Canadian texting number
+  // (provisioned by a super admin, see app/api/admin/locations/[id]/sms-number).
+  // Inbound SMS is matched to a Location by this number, like WhatsApp is by
+  // phoneNumberId.
+  smsFromNumber    String? @unique // E.164, e.g. +14165550123
+  twilioNumberSid  String?
+  /// Prefixed to every customer SMS ("Maple HVAC: ...") — CASL sender ID.
+  smsSenderName    String?
+  bookingUrl       String?
+  googleReviewUrl  String?
+  /// Customer SMS replies are forwarded here (E.164) as well as shown in the inbox.
+  ownerNotifyPhone String?
+
+  // Instagram DMs → booking (Loopdesk add-on, Nov 2026). Each location can
+  // connect one Instagram professional account. Inbound DMs are matched to a
+  // Location by instagramAccountId, like WhatsApp is by phoneNumberId.
+  instagramAccountId   String? @unique
+  instagramAccessToken String?
+  instagramUsername    String?
+  /// Reply to "can I book?" DMs with the booking link automatically.
+  instagramAutoBooking Boolean @default(true)
+  /// Long-lived Instagram tokens last 60 days; the hourly cron refreshes them weekly.
+  instagramTokenRefreshedAt DateTime?
+
+  /// Status: ACTIVE | SUSPENDED. Independent of Business.status — a chain
+  /// can suspend one branch without affecting the others.
+  status String @default("ACTIVE")
+
+  /// Short code in this location's QR ("JOIN K7M2QX T5"). It is how a QR
+  /// scan on the shared WhatsApp number finds the right business, and it
+  /// marks the customer as having joined themselves (consent). lib/onboarding.ts
+  joinCode String? @unique
+  /// The location's own WhatsApp number as people dial it (read once from
+  /// Meta for the QR link). Null on the shared number.
+  whatsappDisplayNumber String?
+
+  createdAt DateTime @default(now())
+
+  customers Customer[]
+  messages  Message[]
+  visits    Visit[]
+
+  @@index([businessId])
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  // WhatsApp wa_id (phone number, no "+"). A customer belongs to the single
+  // location whose WhatsApp number they messaged — the same phone visiting
+  // two branches of one chain is currently tracked as two separate customer
+  // records (one per location), not unified. See README multi-location notes.
+  phone String
+  name  String?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  visitCount  Int      @default(0)
+  totalSpend  Float    @default(0)
+
+  /// Segment: NEW | REGULAR | AT_RISK | HIGH_SPENDER | DORMANT
+  segment          String   @default("NEW")
+  segmentUpdatedAt DateTime @default(now())
+
+  // WhatsApp Business Policy compliance: a customer who has opted out must
+  // never be targeted by an outbound/AI calling script again. Set when an
+  // inbound message matches an opt-out keyword (see lib/whatsapp.ts).
+  optedOut   Boolean   @default(false)
+  optedOutAt DateTime?
+
+  // SMS has its own opt-out (STOP/START keywords, carrier rules). Either
+  // flag blocks outbound SMS; START clears only this one.
+  smsOptedOut   Boolean   @default(false)
+  smsOptedOutAt DateTime?
+  /// PreferredChannel: WHATSAPP | SMS — null = the business default.
+  preferredChannel String?
+  /// Instagram-scoped user id (IGSID) when this person wrote to us on
+  /// Instagram. Someone who only ever wrote on Instagram has no phone yet:
+  /// their phone is stored as "ig:<IGSID>" and nothing ever texts it
+  /// (see lib/instagram.ts isInstagramOnly).
+  instagramId       String?
+  instagramUsername String?
+  lastMissedCallTextAt DateTime?
+  lastReviewRequestAt  DateTime?
+  lastWinbackAt        DateTime?
+
+  // ── Marketing consent (onboarding flow, Nov 2026) ───────────────────────
+  // Offers, win-backs and other marketing go only to IMPLIED or GRANTED.
+  //   IMPLIED  — they wrote or called us themselves, or the owner confirmed an
+  //              imported list already agreed (the behaviour before this field;
+  //              Canada still applies the CASL two-year limit on top)
+  //   PENDING  — added by staff or imported; a YES/NO request is sent and
+  //              nothing marketing goes until they answer YES
+  //   GRANTED  — scanned the QR (JOIN code) or answered YES
+  //   DECLINED — answered NO
+  // Service messages (booking replies, missed-call text-back) are not marketing.
+  consentStatus      String    @default("IMPLIED")
+  /// ConsentSource: INBOUND | QR | MANAGER | IMPORT | IMPORT_CONFIRMED | CALL
+  consentSource      String?
+  consentAt          DateTime?
+  /// When the YES/NO request went out (null = not sent yet; the hourly cron sends queued ones).
+  consentRequestedAt DateTime?
+  /// QR tag scanned on joining, e.g. "T5" for table 5.
+  joinTag            String?
+
+  messages Message[]
+  visits   Visit[]
+  callLogs CallLog[]
+  growthEvents  GrowthEvent[]
+  growthActions GrowthAction[]
+
+  @@unique([locationId, phone])
+  @@index([businessId, consentStatus])
+  @@index([locationId, instagramId])
+  @@index([businessId, segment])
+  @@index([locationId])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  /// Direction: INBOUND | OUTBOUND
+  direction String
+  /// Coarse classification of the transactional message, used for passive
+  /// data capture — we never require the business owner to type anything in.
+  /// Type: BOOKING_CONFIRMATION | ORDER_UPDATE | APPOINTMENT_REMINDER | OTHER
+  type       String   @default("OTHER")
+  text       String?
+  rawPayload String? // raw WhatsApp webhook JSON, for audit/debugging
+  createdAt  DateTime @default(now())
+
+  /// Channel: WHATSAPP | SMS | INSTAGRAM
+  channel     String    @default("WHATSAPP")
+  /// Purpose: MISSED_CALL | REVIEW_REQUEST | WINBACK | REPLY | BOOKING_LINK | OTHER
+  purpose     String?
+  /// Status: QUEUED | SENT | DELIVERED | READ | FAILED | UNDELIVERED | RECEIVED | NOT_SENT
+  status      String?
+  providerSid String?   @unique
+  segments    Int?
+  /// Inbox: null = unread inbound message.
+  readAt      DateTime?
+
+  @@index([businessId, customerId])
+  @@index([locationId])
+  @@index([businessId, channel, createdAt])
+}
+
+model Visit {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  amount     Float?
+  occurredAt DateTime @default(now())
+  source     String? // e.g. "whatsapp:booking_confirmation", "api:sehat-saathi"
+
+  /// Caller-supplied id for visits pushed through the events API
+  /// (POST /api/v1/events). Unique per business so a retried push never
+  /// double-counts a visit. Null for WhatsApp-captured visits.
+  externalId String?
+
+  @@unique([businessId, externalId])
+  @@index([businessId, customerId])
+  @@index([locationId])
+}
+
+model CallingScript {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  /// Sector: SALON | GYM | CLINIC | RETAIL | RESTAURANT
+  sector    String
+  /// Segment: NEW | REGULAR | AT_RISK | HIGH_SPENDER | DORMANT
+  segment   String
+  language  String   @default("hinglish")
+  title     String
+  content   String
+  isDefault Boolean  @default(false) // seeded template vs. custom edit
+  createdAt DateTime @default(now())
+
+  callLogs CallLog[]
+
+  @@index([businessId, sector, segment])
+}
+
+model CallLog {
+  id         String        @id @default(cuid())
+  businessId String
+  business   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  scriptId   String
+  script     CallingScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  generatedContent String
+  /// Status: PENDING | TRIGGERED | COMPLETED | FAILED
+  status            String   @default("PENDING")
+  createdAt         DateTime @default(now())
+
+  @@index([businessId, customerId])
+}
+
+model UsageEvent {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  /// Type: AI_SCRIPT_PERSONALIZATION | VOICE_CALL | SMS_SENT | WHATSAPP_SENT
+  type String
+
+  // AI_SCRIPT_PERSONALIZATION: token counts from the Claude API response,
+  // and an estimated USD cost computed from published per-token pricing at
+  // call time (see lib/usage.ts) — an estimate, not a billing-grade figure.
+  inputTokens  Int?
+  outputTokens Int?
+  estimatedCostUsd Float?
+
+  // VOICE_CALL: recorded when a call is triggered via lib/calling-provider.ts.
+  // Duration/actual cost isn't known at trigger time (the provider would
+  // need to report it back via its own webhook, not wired in yet — see
+  // README), so this counts *attempts*, not minutes billed.
+  callTriggered Boolean?
+
+  // SMS_SENT: billable SMS segments (160 GSM / 70 Unicode chars each).
+  smsSegments Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([businessId, type, createdAt])
+}
+
+model SystemLog {
+  id         String    @id @default(cuid())
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  /// Source: WEBHOOK | CALLING_SCRIPT | BILLING | AUTH
+  source String
+  /// Level: INFO | WARN | ERROR
+  level  String
+  message String
+  meta    String? // JSON-encoded extra context, e.g. { "customerId": "..." }
+
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([businessId, createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  /// Plan being purchased: STARTER | GROWTH | PRO, or a bundle plan
+  /// (ANSWER | ANSWER_RETURN | GROW) when kind = BUNDLE.
+  plan          String
+  /// Kind: PLAN (Regulars-only plans) | BUNDLE (the one-platform bundle)
+  kind          String @default("PLAN")
+  amountInPaise Int // Razorpay amounts are in paise (₹1 = 100 paise)
+  currency      String @default("INR")
+
+  razorpayOrderId   String  @unique
+  razorpayPaymentId String?
+  /// Status: CREATED | PAID | FAILED
+  status String @default("CREATED")
+
+  createdAt DateTime @default(now())
+  paidAt    DateTime?
+
+  @@index([businessId, createdAt])
+}
+
+/// Server-to-server key for the inbound events API (POST /api/v1/events),
+/// one business per key. Lets another system (e.g. Sehat Saathi, a POS or a
+/// booking tool) report real visits instead of relying on customer-typed
+/// WhatsApp keywords. Only the SHA-256 hash is stored; the plaintext is shown
+/// once, at creation. Issued and revoked by a super admin (/admin/api-keys).
+model ApiKey {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String // who uses it, e.g. "Sehat Saathi — City Care Hospital"
+  keyPrefix  String // first characters, to recognise a key without revealing it
+  keyHash    String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([businessId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AI Growth Manager (Nov 2026) — the "brain" of Bundle A (WayneRing Front
+// Desk + Regulars + GMB Manager + Video Studio + Field Service CRM).
+// One loop per business: WATCH (GrowthEvent timeline) → DECIDE (planner
+// proposes GrowthActions against the owner's goal) → ACT (executor: calls,
+// texts, Google posts, Reels) → MEASURE (attribution on later events) →
+// LEARN (per-type results feed the next plan's priorities).
+// See lib/growth/*.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One per business. Off until a super admin or the owner turns it on.
+model GrowthSettings {
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  enabled  Boolean @default(false)
+  /// Goal: MORE_BOOKINGS | MORE_REPEAT_VISITS | MORE_REVIEWS — weights the planner.
+  goal     String  @default("MORE_BOOKINGS")
+  timezone String  @default("America/Toronto")
+  currency String  @default("CAD")
+  /// Typical job / visit value, used when an event has no amount.
+  avgJobValue     Float  @default(250)
+  /// MessageLanguage: en | hinglish | hi | pa — language the AI writes customer texts in.
+  messageLanguage String @default("en")
+
+  /// Local hour the owner gets the daily brief (0–23).
+  briefHour       Int @default(8)
+  /// Customers are only contacted between these local hours.
+  contactFromHour Int @default(9)
+  contactToHour   Int @default(20)
+  /// Guardrails.
+  maxTouchesPerWeek Int @default(2)
+  dailyActionCap    Int @default(30)
+  /// Days after a visit/job that a customer is "due" again (e.g. 180 for HVAC tune-ups). Null = off.
+  serviceIntervalDays Int?
+  quoteFollowupDays   Int   @default(3)
+  /// Quotes at or above this value get an AI call instead of a text (when WayneRing is connected).
+  callQuoteAbove      Float @default(500)
+
+  /// JSON { [actionType]: "SUGGEST" | "APPROVE" | "AUTO" } — overrides lib/growth/types.ts defaults.
+  autonomy String @default("{}")
+
+  /// Owner number for the brief and approvals (E.164). Null = first location's ownerNotifyPhone.
+  ownerPhone String?
+
+  // Connectors (all optional — an action whose tool isn't connected is skipped).
+  wayneRingBaseUrl     String?
+  /// wrcb_… issued in WayneRing (POST /api/inbound/assistants/:id/callback-key)
+  wayneRingCallbackKey String?
+  /// GMB Manager location id (service login comes from GMB_API_URL / GMB_SERVICE_EMAIL / GMB_SERVICE_PASSWORD).
+  gmbLocationId        String?
+  /// AI Video Studio client id (login from VIDEO_STUDIO_* env).
+  videoStudioClientId  String?
+
+  lastPlanDate   String? // YYYY-MM-DD (business timezone) of the last daily plan
+  lastReportWeek String? // ISO week of the last weekly report, e.g. 2026-W46
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// The timeline: everything that happened with a customer, from every product.
+model GrowthEvent {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId String?
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// Type: CALL_ANSWERED | CALL_MISSED | CALL_SHORT | CALLBACK_ANSWERED | CALLBACK_UNANSWERED |
+  /// BOOKING | QUOTE_SENT | QUOTE_ACCEPTED | QUOTE_DECLINED | JOB_DONE | INVOICE_PAID |
+  /// VISIT | REVIEW_RECEIVED | MESSAGE_IN
+  type       String
+  occurredAt DateTime
+  value      Float?
+  /// The thing it is about in the source system (quote id, job id, review id).
+  ref        String?
+  externalId String?
+  /// Action id reported by the source (e.g. a WayneRing callback placed for a GrowthAction).
+  actionId           String?
+  /// Set by attribution: the GrowthAction this conversion is credited to.
+  attributedActionId String?
+  data       String? // JSON
+  source     String
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, externalId])
+  @@index([businessId, customerId, occurredAt])
+  @@index([businessId, type, occurredAt])
+}
+
+/// Something the brain wants to do (or did).
+model GrowthAction {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId String?
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// Type: see lib/growth/types.ts ACTION_TYPES
+  type     String
+  /// Status: PROPOSED | APPROVED | EXECUTING | DONE | SKIPPED | FAILED | EXPIRED
+  status   String @default("PROPOSED")
+  /// Autonomy at creation: SUGGEST | APPROVE | AUTO
+  autonomy String
+  title    String
+  /// Why the brain chose it — shown to the owner.
+  reason   String
+  payload  String @default("{}") // JSON: message text, call context, quote ref…
+  expectedValue Float @default(0)
+  priority      Float @default(0)
+  planDate  String  // YYYY-MM-DD in the business timezone
+  dedupeKey String
+  briefDate String?
+  briefItem Int?
+
+  result     String? // JSON from the tool
+  error      String?
+  executedAt DateTime?
+  /// Outcome: WON | null — set by attribution when a conversion follows.
+  outcome      String?
+  outcomeValue Float?
+  outcomeAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, dedupeKey])
+  @@index([businessId, status])
+  @@index([businessId, customerId, executedAt])
+}
+
+/// The business's account in one of the other tools (WayneRing, Field
+/// Service CRM, GMB Manager, Video Studio), created automatically by
+/// lib/hub/provision.ts. One row per business per tool.
+model ToolAccount {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// Tool: WAYNERING | FIELD_SERVICE | GMB | VIDEO
+  tool       String
+  /// Status: PENDING | ACTIVE | PAUSED | FAILED
+  status     String   @default("PENDING")
+  /// The account's id in that tool (tenant / company / client id).
+  externalId String?
+  /// JSON: what the tool reported back (assistant id, phone number, Google connected…)
+  data       String   @default("{}")
+  /// Id of the rk_live_ key the hub issued to this tool (to revoke on re-issue).
+  apiKeyId   String?
+  lastError  String?
+  attempts   Int      @default(0)
+  provisionedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, tool])
+  @@index([status])
+}
+
+// Attempt counters for sign-in, signup and password reset.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}
+
+// Razorpay's plan id for each plan, currency and price.
+model RazorpayPlan {
+  key    String @id
+  planId String
+}
+
+// ── Products & Bundles (Nov 2026) ─────────────────────────────────────────
+// The catalog of everything Wayne E Solutions sells, and bundles built from
+// it. See lib/hub/catalog.ts and Admin → Products & Bundles.
+
+model Product {
+  id          String  @id @default(cuid())
+  /// Stable slug, e.g. "korvo". Built-in tools use waynering, field-service, gmb, video, regulars.
+  key         String  @unique
+  name        String
+  description String?
+  /// Where the client opens it (manual software) or our website for it.
+  url         String?
+  /// Connect: HUB (Regulars itself) | AUTO (account made automatically, one login) | MANUAL (our team sets it up)
+  connect     String  @default("MANUAL")
+  /// For AUTO: which connected tool it is (WAYNERING | FIELD_SERVICE | GMB | VIDEO).
+  hubTool     String? @unique
+  /// Optional list prices, in rupees / Canadian dollars per month.
+  priceInr    Int?
+  priceCad    Int?
+  builtIn     Boolean @default(false)
+  active      Boolean @default(true)
+  sortOrder   Int     @default(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bundles BundleProduct[]
+  setups  ProductSetup[]
+}
+
+model Bundle {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  /// Price per period, in rupees / Canadian dollars.
+  priceInr    Int?
+  priceCad    Int?
+  /// Interval: MONTHLY | YEARLY
+  interval    String  @default("MONTHLY")
+  /// Includes the AI Growth Manager (morning plan, win-backs…).
+  growthManager   Boolean @default(false)
+  /// Included SMS per month (null = no limit set).
+  smsMonthlyLimit Int?
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items      BundleProduct[]
+  businesses Business[]
+}
+
+model BundleProduct {
+  bundleId  String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([bundleId, productId])
+}
+
+/// A MANUAL product our team sets up for one client: shown on their home page.
+model ProductSetup {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Status: SETUP | READY | PAUSED
+  status     String   @default("SETUP")
+  /// The client's own link/login page for it, if different from the product's.
+  link       String?
+  note       String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, productId])
+}
+
+// ── Offers (onboarding flow, Nov 2026) ────────────────────────────────────
+// A manager (or the owner) writes an offer; inside the owner's limits it goes
+// out at once, otherwise the owner gets an APPROVE / REJECT WhatsApp. No
+// answer in 24 hours → one reminder; in 48 hours → the offer expires (it is
+// never sent without a yes). See lib/offers.ts.
+model Offer {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  title           String
+  /// What the customer reads (goes into the "offer" WhatsApp template / an SMS).
+  message         String
+  discountPercent Int?
+  /// Free item or bonus points.
+  freebie         Boolean  @default(false)
+  /// Comma list of segments (NEW,REGULAR…). Empty = every customer who can get offers.
+  segments        String   @default("")
+  /// How many customers it would reach when it was created.
+  audienceCount   Int      @default(0)
+  /// Don't send before this time (null = as soon as it is approved, in contact hours).
+  sendAt          DateTime?
+
+  /// Status: PENDING_APPROVAL | APPROVED | REJECTED | EXPIRED | SENDING | SENT | CANCELLED
+  status         String    @default("PENDING_APPROVAL")
+  /// Short number the owner types back ("APPROVE 7"). Unique per business.
+  approvalNo     Int
+  /// Why it needed the owner (plain words), empty when auto-approved.
+  approvalReason String    @default("")
+  requestedAt    DateTime  @default(now())
+  reminderSentAt DateTime?
+  decidedAt      DateTime?
+  /// DecidedVia: AUTO | WHATSAPP | SMS | DASHBOARD | TIMEOUT
+  decidedVia     String?
+  sentAt         DateTime?
+  sentCount      Int       @default(0)
+  failedCount    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, approvalNo])
+  @@index([status, requestedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Tool WhatsApp through the hub (bundle rule 4, Nov 2026): one client = one
+// WhatsApp number. Loyvexa doesn't own a number; it asks Regulars to send
+// (POST /api/hub/tools/loyvexa/whatsapp/send) and Regulars forwards the
+// replies of those people back to it. Kept apart from Customer so dealers
+// and mechanics don't land in the business's customer list.
+// ---------------------------------------------------------------------------
+
+/// Someone a tool talks to on this business's number (a Loyvexa dealer / mechanic).
+model HubWaContact {
+  id             String    @id @default(cuid())
+  businessId     String
+  /// Tool: LOYVEXA
+  tool           String
+  /// Digits only, with country code (919814000101)
+  phone          String
+  /// Location whose number was used (null = the shared number)
+  locationId     String?
+  lastOutboundAt DateTime?
+  lastInboundAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([businessId, tool, phone])
+  @@index([phone])
+}
+
+/// A message a tool sent through Regulars, so Meta's delivery receipts go back to it.
+model HubWaMessage {
+  providerSid String   @id
+  businessId  String
+  tool        String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}

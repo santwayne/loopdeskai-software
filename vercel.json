@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/downgrade-expired-plans",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/winback",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/growth",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/offers",
+      "schedule": "20 * * * *"
+    }
+  ]
+}
