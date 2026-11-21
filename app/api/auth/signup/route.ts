@@ -13,9 +13,8 @@ const signupSchema = z.object({
   password: z.string().min(8),
   businessName: z.string().min(1),
   sector: z.enum(SECTORS as [string, ...string[]]),
-  // Bundle A signup (one platform). Optional so the plain Regulars signup
-  // keeps working unchanged.
-  bundlePlan: z.enum(BUNDLE_PLAN_IDS as [string, ...string[]]).optional(),
+  // Every Loopdesk signup picks a bundle plan; it is paid on the Billing page.
+  bundlePlan: z.enum(BUNDLE_PLAN_IDS as [string, ...string[]]),
   country: z.enum(["CA", "IN"]).optional(),
   phone: z.string().max(30).optional(),
 });

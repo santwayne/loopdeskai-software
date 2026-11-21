@@ -64,23 +64,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, plan: payment.plan, paidUntil, tools });
   }
 
-  await prisma.$transaction([
-    prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: "PAID", razorpayPaymentId: razorpay_payment_id, paidAt: now },
-    }),
-    prisma.business.update({
-      where: { id: business.id },
-      data: { plan: payment.plan, planExpiresAt: new Date(now.getTime() + PLAN_PERIOD_MS) },
-    }),
-  ]);
-
-  await logEvent({
-    businessId: business.id,
-    source: "BILLING",
-    level: "INFO",
-    message: `Payment verified, plan upgraded to ${payment.plan}`,
-  });
-
-  return NextResponse.json({ ok: true, plan: payment.plan });
+  // Loopdesk only sells bundles; any other kind of payment is not ours.
+  return NextResponse.json({ error: "Unknown payment" }, { status: 400 });
 }

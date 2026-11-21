@@ -59,7 +59,7 @@ async function sendAlert(params: {
       body: JSON.stringify({
         // "text" makes this work as-is against a Slack incoming webhook;
         // the rest is there for any other JSON-accepting endpoint.
-        text: `[Regulars] ${params.source} ERROR: ${params.message}`,
+        text: `[Loopdesk] ${params.source} ERROR: ${params.message}`,
         source: params.source,
         level: "ERROR",
         businessId: params.businessId,

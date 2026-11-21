@@ -8,6 +8,12 @@ import clsx from "clsx";
 import { BUNDLE_PLANS, BUNDLE_PLAN_IDS, formatPrice, isBundlePlan, type Currency } from "@/lib/hub/plans";
 import type { FrontDeskPlan } from "@/lib/types";
 
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
 /** Pay (or renew, or change plan) for the whole bundle in one checkout. */
 export function BundleCheckout({ currentPlan, status, currency, autopay, autopayPlan, paidUntil }: { currentPlan: FrontDeskPlan; status: string; currency: Currency; autopay: string; autopayPlan: string | null; paidUntil: string | null }) {
   const router = useRouter();

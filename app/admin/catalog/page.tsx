@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { currentPortal, portalUrl } from "@/lib/portal";
 import { prisma } from "@/lib/prisma";
 import { ensureCatalog } from "@/lib/hub/catalog";
 import { BUNDLE_PLANS, BUNDLE_PLAN_IDS } from "@/lib/hub/plans";
@@ -12,8 +10,6 @@ export const dynamic = "force-dynamic";
  * and giving a bundle to a client. See lib/hub/catalog.ts.
  */
 export default async function AdminCatalogPage() {
-  // Bundles live on the Loopdesk portal; from the Regulars address, go there.
-  if (currentPortal() !== "LOOPDESK") redirect(portalUrl("LOOPDESK") ? `${portalUrl("LOOPDESK")}/admin/catalog` : "/admin");
   await ensureCatalog();
   const [products, bundles, businesses] = await Promise.all([
     prisma.product.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { _count: { select: { bundles: true } } } }),

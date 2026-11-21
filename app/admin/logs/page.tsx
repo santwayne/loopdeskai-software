@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { businessWhere, currentPortal } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +18,7 @@ export default async function AdminLogsPage({
     : undefined;
 
   const logs = await prisma.systemLog.findMany({
-    // This portal's businesses, plus platform-wide events (no business).
-    where: { ...(level ? { level } : {}), OR: [{ businessId: null }, { business: businessWhere(currentPortal()) }] },
+    where: { ...(level ? { level } : {}) },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: { business: { select: { name: true } } },

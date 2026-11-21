@@ -8,6 +8,12 @@ use every day.
 This repo is the **product platform** (backend + dashboard) — separate from
 [`arpanwayne/regulars`](https://github.com/arpanwayne/regulars), which is the marketing website.
 
+> **This repo is Loopdesk AI**: the bundle hub (bundles, product catalog, one bill,
+> single sign-on and automatic set-up in the other tools) plus the customer, inbox,
+> offers and Growth Manager features every bundle client uses. The Regulars loyalty
+> product on its own (Starter / Growth / Pro) is a separate repo with its own database
+> (Nov 2026). Loopdesk runs on app.loopdeskai.wayneesolutions.com.
+
 ## How it works
 
 1. **Passive data capture** — the business's transactional WhatsApp messages (booking

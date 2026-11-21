@@ -3,7 +3,6 @@ import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { switcherItems } from "@/lib/hub/switcher";
-import { currentPortal, portalForHost, portalOfBusiness, portalUrl } from "@/lib/portal";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -17,14 +16,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // A super admin has no Business of their own — send them to their
     // actual home page instead of erroring on a missing business.
     redirect(user.role === "SUPER_ADMIN" ? "/admin" : "/api/auth/clear-session");
-  }
-
-  // A bundle client opened on the Regulars address (or a Regulars-plan client on
-  // Loopdesk's): send them to their own portal to log in there.
-  if (user.role !== "SUPER_ADMIN") {
-    const home = portalOfBusiness(business);
-    const url = portalUrl(home);
-    if (home !== currentPortal() && url && portalForHost(new URL(url).host) === home) redirect(`${url}/login?moved=1`);
   }
 
   return (
