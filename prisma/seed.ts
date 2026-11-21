@@ -7,6 +7,10 @@ const prisma = new PrismaClient();
 // Demo data for a salon and a clinic so the dashboard is meaningful before
 // any real WhatsApp traffic arrives. Run with `npm run db:seed`.
 async function main() {
+  // Demo logins with a published password must never land in a live database (H2).
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    throw new Error("Refusing to seed demo accounts in production (set ALLOW_SEED=true only on a throwaway database).");
+  }
   const passwordHash = await bcrypt.hash("password123", 10);
 
   const salonOwner = await prisma.user.upsert({
@@ -81,7 +85,7 @@ async function main() {
     where: { email: "admin@regulars.demo" },
     update: { role: "SUPER_ADMIN" },
     create: {
-      name: "Regulars Admin",
+      name: "Loopdesk Admin",
       email: "admin@regulars.demo",
       passwordHash,
       role: "SUPER_ADMIN",

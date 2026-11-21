@@ -15,7 +15,7 @@ export function isRazorpayConfigured(): boolean {
  * Creates a Razorpay Order for one month of the given plan. Throws if
  * Razorpay isn't configured — callers must check isRazorpayConfigured()
  * first and show an honest "billing not set up yet" state instead of a
- * fake checkout (same pattern as lib/calling-provider.ts).
+ * fake checkout.
  */
 export async function createRazorpayOrder(params: {
   plan: Plan;
