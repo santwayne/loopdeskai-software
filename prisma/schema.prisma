@@ -631,7 +631,7 @@ model ToolAccount {
   id         String   @id @default(cuid())
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  /// Tool: WAYNERING | FIELD_SERVICE | GMB | VIDEO
+  /// Tool: WAYNERING | FIELD_SERVICE | GMB | VIDEO | KORVO | LOYVEXA
   tool       String
   /// Status: PENDING | ACTIVE | PAUSED | FAILED
   status     String   @default("PENDING")
