@@ -59,7 +59,7 @@ npm run dev
 ```
 
 Demo logins after seeding: `owner@glow-salon.demo` / `owner@wellness-clinic.demo`, password
-`password123`. A demo super admin is also seeded: `admin@regulars.demo` / `password123` → `/admin`.
+`password123`. A demo super admin is also seeded: `admin@regulars.demo` / `password123` → `/admin`. In production the seed refuses to run and `password123` cannot sign in to any account.
 
 ### Super admin panel
 

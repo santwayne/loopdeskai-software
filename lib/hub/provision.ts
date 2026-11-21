@@ -25,6 +25,7 @@ export const PATH: Record<Tool, string> = {
   FIELD_SERVICE: "/api/v1/hub/provision",
   GMB: "/api/hub/provision",
   VIDEO: "/api/v1/hub/provision",
+  KORVO: "/api/v1/hub/loopdesk/provision",
   LOYVEXA: "/api/hub/provision",
 };
 /** Tools that report events back into Regulars and so get an rk_live_ key. */
@@ -90,6 +91,8 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
     // Every tool in the package, so a tool can show only what the package pays for
     // (Loyvexa: AI calls only with WAYNERING — bundle rule, Nov 2026).
     tools: businessTools(biz),
+    // Distributor Pack: Loyvexa links itself to the client's Korvo company (H5/L4).
+    korvo: tool === "LOYVEXA" ? await korvoLinkFor(biz.id) : undefined,
     // Custom bundles (Products & Bundles) turn the follow-ups on with their Growth Manager box.
     growth: { missedCallTextBack: biz.customBundleId ? biz.bundleGrowth : biz.frontDeskPlan === "ANSWER_RETURN" || biz.frontDeskPlan === "GROW" },
   };
@@ -123,6 +126,19 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
     await logEvent({ businessId: biz.id, source: "BILLING", level: "ERROR", message: `Set-up in ${TOOL_META[tool].name} failed`, meta: { error: message } });
     return { tool, ok: false, status: "FAILED", error: message };
   }
+}
+
+/**
+ * The client's Korvo company, for Loyvexa's provision call, once Korvo is set
+ * up (KORVO runs before LOYVEXA in TOOLS). Loyvexa uses the code to link
+ * itself to Korvo, so nobody clicks "Connect Korvo DMS" by hand.
+ */
+export async function korvoLinkFor(businessId: string): Promise<{ companyCode: string; companyId: string | null; baseUrl: string | null } | undefined> {
+  const acc = await prisma.toolAccount.findUnique({ where: { businessId_tool: { businessId, tool: "KORVO" } } });
+  if (!acc || acc.status !== "ACTIVE") return undefined;
+  const d = accountData<{ companyCode?: string; companyId?: string }>(acc);
+  if (!d.companyCode) return undefined;
+  return { companyCode: d.companyCode, companyId: d.companyId ?? acc.externalId ?? null, baseUrl: toolUrl("KORVO", "api") };
 }
 
 /** Point the Growth Manager's connectors at the accounts that were just made. */

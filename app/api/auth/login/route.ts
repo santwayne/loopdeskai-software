@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { createSessionToken, verifyPassword, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth";
 
+const SEED_PASSWORDS = new Set(["password123"]);
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -19,6 +21,13 @@ export async function POST(req: NextRequest) {
   const lower = email.toLowerCase();
   const [byIp, byEmail] = await Promise.all([allow(`login:ip:${clientIp(req)}`, 30, 15 * 60_000), allow(`login:email:${lower}`, 10, 15 * 60_000)]);
   if (!byIp || !byEmail) return NextResponse.json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, { status: 429 });
+
+  // The seed accounts (admin@regulars.demo and the demo salon/clinic) were made
+  // with this published password. Never let it open a live account (H2): the
+  // owner resets it with "Forgot password" first.
+  if (process.env.NODE_ENV === "production" && SEED_PASSWORDS.has(password)) {
+    return NextResponse.json({ error: "This password is not allowed any more. Use \"Forgot password\" to set a new one." }, { status: 401 });
+  }
 
   const user = await prisma.user.findFirst({ where: { email: { in: [email, lower] } } });
   if (!user || !(await verifyPassword(password, user.passwordHash))) {

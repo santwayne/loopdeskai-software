@@ -12,8 +12,10 @@ import { TOOL_NAMES } from "@/lib/brand";
  * Prices: CAD are the published Front Desk prices. INR are a DRAFT — confirm
  * before taking Indian payments.
  */
-export type Tool = "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "LOYVEXA";
-export const TOOLS: Tool[] = ["WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "LOYVEXA"];
+export type Tool = "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA";
+// Order matters: set-up runs in this order, and Loyvexa needs the Korvo
+// company code, so KORVO comes before LOYVEXA (fault H5).
+export const TOOLS: Tool[] = ["WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA"];
 export type Currency = "CAD" | "INR";
 
 export type BundlePlan = {
@@ -79,6 +81,16 @@ export const TOOL_META: Record<Tool, {
     name: TOOL_NAMES.ads, blurb: "Finished video ads and social posts", ownerLogin: true,
     apiEnv: "VIDEO_STUDIO_API_URL", appEnv: "VIDEO_STUDIO_APP_URL", secretEnv: "HUB_SECRET_VIDEO",
     pages: { home: "/ads", make: "/ads/new" },
+  },
+  // Distributor software with Tally (Growlane AI). Set up by the hub since
+  // Nov 2026: company + owner admin, paused when the bundle lapses, and one
+  // click from the hub signs the owner in (Korvo web app /sso). Korvo keeps
+  // its own HUB_SECRET for the Loyvexa link, so its hub secret there is
+  // LOOPDESK_HUB_SECRET (= HUB_SECRET_KORVO here).
+  KORVO: {
+    name: "Korvo", blurb: "Distributor app: dealers, orders, approvals, Tally", ownerLogin: true,
+    apiEnv: "KORVO_API_URL", appEnv: "KORVO_APP_URL", secretEnv: "HUB_SECRET_KORVO",
+    pages: { home: "/" },
   },
   // Dealer / channel loyalty for manufacturers (Growlane AI). Not in the
   // built-in Front Desk plans; sold through custom bundles (Products & Bundles).

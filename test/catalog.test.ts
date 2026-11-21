@@ -15,8 +15,10 @@ test("every built-in tool is in the catalog exactly once, plus Regulars as the h
   assert.equal(BUILT_IN_PRODUCTS.filter((p) => p.connect === "HUB").length, 1);
   const keys = [...BUILT_IN_PRODUCTS, ...STARTER_PRODUCTS].map((p) => p.key);
   assert.equal(new Set(keys).size, keys.length, "keys are unique");
-  // Korvo is still manual; Loyvexa connects automatically since Nov 2026.
-  assert.equal(STARTER_PRODUCTS.find((p) => p.key === "korvo")?.connect, "MANUAL");
+  // Loyvexa (Nov 2026) and Korvo (21 Nov 2026) connect automatically.
+  assert.equal(BUILT_IN_PRODUCTS.find((p) => p.key === "korvo")?.hubTool, "KORVO");
+  assert.equal(BUILT_IN_PRODUCTS.find((p) => p.key === "korvo")?.connect, "AUTO");
+  assert.equal(STARTER_PRODUCTS.find((p) => p.key === "korvo"), undefined);
   assert.equal(BUILT_IN_PRODUCTS.find((p) => p.key === "loyvexa")?.hubTool, "LOYVEXA");
   assert.equal(STARTER_PRODUCTS.find((p) => p.key === "loyvexa"), undefined);
 });
@@ -83,4 +85,20 @@ test("provisioning, one-login, nav and the win-back cron use the custom bundle t
   assert.match(readFileSync("app/api/cron/winback/route.ts", "utf8"), /bundleGrowth: true/);
   // A built-in plan clears a custom bundle, so the two can't both apply.
   assert.match(readFileSync("lib/hub/bundle.ts", "utf8"), /customBundleId: null/);
+});
+
+test("Distributor Pack: Korvo is set up before Loyvexa, so Loyvexa gets the company code (H5)", () => {
+  assert.deepEqual(businessTools({ customBundleId: "b1", bundleTools: "LOYVEXA,KORVO,WAYNERING", frontDeskPlan: null }), ["WAYNERING", "KORVO", "LOYVEXA"]);
+  assert.ok(TOOLS.indexOf("KORVO") < TOOLS.indexOf("LOYVEXA"));
+  for (const plan of ["ANSWER", "ANSWER_RETURN", "GROW"]) assert.ok(!businessTools({ customBundleId: null, bundleTools: "", frontDeskPlan: plan }).includes("KORVO"));
+});
+
+test("the switcher opens Korvo when it is in the package, grey otherwise (H9)", async () => {
+  const { switcherItems } = await import("../lib/hub/switcher");
+  const on = switcherItems(["KORVO"]).find((i) => i.id === "korvo");
+  assert.equal(on?.enabled, true);
+  assert.equal(on?.href, "/api/hub/open/korvo");
+  const off = switcherItems(["WAYNERING"]).find((i) => i.id === "korvo");
+  assert.equal(off?.enabled, false);
+  assert.equal(off?.href, undefined);
 });

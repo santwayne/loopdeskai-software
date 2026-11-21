@@ -6,6 +6,13 @@ import { RunSegmentationButton } from "@/components/run-segmentation-button";
 import { HubHome } from "@/components/hub-home";
 import { formatDateTime } from "@/lib/format";
 import { sharedSender, usesSharedNumber } from "@/lib/whatsapp-sender";
+import { businessTools } from "@/lib/hub/catalog-rules";
+
+const CALL_EVENTS = ["CALL_ANSWERED", "CALL_MISSED", "CALL_SHORT", "CALLBACK_ANSWERED", "CALLBACK_UNANSWERED"];
+const CALL_LABEL: Record<string, string> = {
+  CALL_ANSWERED: "Answered", CALL_MISSED: "Missed", CALL_SHORT: "Hung up",
+  CALLBACK_ANSWERED: "Called back", CALLBACK_UNANSWERED: "Call-back not picked up",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +21,10 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   if (!business) return null;
   // Bundle A: this page is the home screen for every tool.
   const isBundle = business.bundleStatus !== "NONE";
+  // Bundle clients with Calls see the calls WayneRing reported to the hub (H6).
+  const hasCalls = isBundle && businessTools(business).includes("WAYNERING");
 
-  const [segmentCounts, totalCustomers, recentCallLogs, connectedLocationCount] = await Promise.all([
+  const [segmentCounts, totalCustomers, recentCallLogs, connectedLocationCount, recentCalls] = await Promise.all([
     prisma.customer.groupBy({
       by: ["segment"],
       where: { businessId: business.id },
@@ -29,6 +38,14 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
       include: { customer: true },
     }),
     prisma.location.count({ where: { businessId: business.id, whatsappPhoneNumberId: { not: null } } }),
+    hasCalls
+      ? prisma.growthEvent.findMany({
+          where: { businessId: business.id, type: { in: CALL_EVENTS } },
+          orderBy: { occurredAt: "desc" },
+          take: 5,
+          include: { customer: { select: { name: true, phone: true } } },
+        })
+      : Promise.resolve([]),
   ]);
   // Connected = a location has its own number, or the business sends from the shared number.
   const hasWhatsappConfig = connectedLocationCount > 0 || (usesSharedNumber(business) && !!sharedSender());
@@ -66,6 +83,30 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
         <StatCard label="High spender" value={countBySegment.HIGH_SPENDER ?? 0} />
         <StatCard label="Dormant" value={countBySegment.DORMANT ?? 0} />
       </div>
+
+      {hasCalls && (
+        <div className="rounded-card border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <h2 className="font-medium">Recent AI calling activity</h2>
+            <a href="/api/hub/open/wayneRing?page=calls" target="_blank" rel="noopener" className="text-sm text-brand-700 hover:underline">All calls ↗</a>
+          </div>
+          {recentCalls.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-500">No calls yet. Calls your AI receptionist answers or misses show up here.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {recentCalls.map((e) => (
+                <li key={e.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium">{e.customer?.name || e.customer?.phone || "Unknown caller"}</p>
+                    <p className="text-gray-500">{formatDateTime(e.occurredAt, business.country)}</p>
+                  </div>
+                  <span className={`text-xs font-medium ${e.type === "CALL_MISSED" || e.type === "CALLBACK_UNANSWERED" ? "text-red-600" : "text-gray-500"}`}>{CALL_LABEL[e.type] ?? e.type}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {!isBundle && <div className="rounded-card border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">

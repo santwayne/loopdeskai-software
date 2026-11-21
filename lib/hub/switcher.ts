@@ -12,8 +12,8 @@ const ORDER: { id: string; tool?: Tool; name: string; blurb: string; slug?: stri
   { id: "google", tool: "GMB", name: "Google Profile", blurb: "Reviews and Google listing", slug: "gmb" },
   { id: "ads", tool: "VIDEO", name: "Ads", blurb: "AI video ads", slug: "video" },
   { id: "loyvexa", tool: "LOYVEXA", name: "Loyvexa", blurb: "Channel loyalty", slug: "loyvexa" },
-  // Korvo is set up by our team (manual link on the home screen), not opened from here yet.
-  { id: "korvo", name: "Korvo", blurb: "Distributor app with Tally" },
+  // Set up and opened by the hub since Nov 2026 (H9).
+  { id: "korvo", tool: "KORVO", name: "Korvo", blurb: "Distributor app with Tally", slug: "korvo" },
 ];
 
 export function switcherItems(tools: Tool[]): SwitcherItem[] {

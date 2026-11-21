@@ -1,7 +1,7 @@
 import { logEvent } from "@/lib/logger";
 
 // Thin seam for an email provider (Resend is the natural pick — free tier,
-// simple REST API). Same honesty pattern as lib/calling-provider.ts: without
+// simple REST API). Same honesty pattern as the rest of the app: without
 // EMAIL_PROVIDER_API_KEY configured, this does NOT pretend to send an email.
 // It logs the content as a WARN in SystemLog instead, so a super admin can
 // retrieve a password-reset link from /admin/logs and relay it manually —
