@@ -21,7 +21,7 @@ async function context(locationId: string | null | undefined) {
   const locations = await prisma.location.findMany({ where: { businessId: member.business.id }, orderBy: { createdAt: "asc" } });
   const location = locations.find((l) => l.id === locationId) ?? locations[0];
   if (!location) return null;
-  return { ...member, location };
+  return { ...member, location, locations };
 }
 
 function phoneFor(raw: string, country: string) {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const p = parsed.data;
   const ctx = await context("locationId" in p ? p.locationId : null);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { business, location, user } = ctx;
+  const { business, location, locations, user } = ctx;
 
   if (p.action === "confirm") {
     const r = await confirmRedeem(business, p.requestId, p.code, user.id);
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   if (p.action === "bill") {
     // key: made by the browser per bill, so a double tap never counts twice.
     const externalId = p.billNo ? `counter:${location.id}:${p.billNo}` : `counter:${p.key}`;
-    const result = await ingestEvents(business, [{ type: "VISIT", phone, name: p.name || undefined, amount: p.amount, externalId, locationId: location.id }], `counter:${user.id}`);
+    const result = await ingestEvents({ ...business, locations }, [{ type: "VISIT", phone, name: p.name || undefined, amount: p.amount, externalId, locationId: location.id }], `counter:${user.id}`);
     const r = result.results[0];
     if (r.status === "rejected") return NextResponse.json({ error: r.error }, { status: 400 });
     const earned = await prisma.loyaltyEntry.findFirst({ where: { customerId: r.customerId, type: "EARN" }, orderBy: { createdAt: "desc" } });
