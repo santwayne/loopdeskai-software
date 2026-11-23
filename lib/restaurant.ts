@@ -156,3 +156,46 @@ export function birthdayAsk(lang: "en" | "hinglish") {
 export function birthdaySavedText(lang: "en" | "hinglish") {
   return lang === "en" ? "Got it! We'll send you a birthday treat." : "Note kar liya! Birthday pe aapko treat bhejenge.";
 }
+
+// ── Growth Manager restaurant mode (phase 3) ────────────────────────────
+export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * The slowest weekday from bills per weekday over the last 4 weeks (index
+ * 0 = Sunday), when it is clearly slow: at least 25% under the average of
+ * the other days, with 20+ bills overall so a quiet start isn't "slow".
+ */
+export function slowestWeekday(billsByWeekday: number[]): number | null {
+  if (billsByWeekday.length !== 7) return null;
+  const total = billsByWeekday.reduce((t, n) => t + n, 0);
+  if (total < 20) return null;
+  let min = 0;
+  for (let d = 1; d < 7; d++) if (billsByWeekday[d] < billsByWeekday[min]) min = d;
+  const othersAvg = (total - billsByWeekday[min]) / 6;
+  return billsByWeekday[min] <= othersAvg * 0.75 ? min : null;
+}
+
+/** The offer the Growth Manager proposes for a slow day. */
+export function slowDayOffer(weekday: number, businessName: string) {
+  const day = WEEKDAYS[weekday];
+  return {
+    title: `${day} combo`,
+    message: `${day} special at ${businessName}: 15% off any combo today only. Show this message at the counter.`,
+    discountPercent: 15,
+    segments: ["REGULAR", "HIGH_SPENDER", "AT_RISK"],
+  };
+}
+
+/** Win-back line for a restaurant customer ("Simran 40 din se nahi aayi"). */
+export function restaurantWinbackTitle(name: string, days: number) {
+  return `${name} hasn't ordered in ${days} days`;
+}
+
+// ── Reservations (phase 3) ──────────────────────────────────────────────
+/** "a table for 4 on Sat 28 Nov at 9:00 pm" / "your takeaway order (2 taro boba) for pickup on …". */
+export function reservationLine(r: { kind: "TABLE" | "TAKEAWAY"; partySize?: number | null; at: Date; items?: string | null }, timeZone: string) {
+  const when = new Intl.DateTimeFormat("en-IN", { timeZone, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }).format(r.at).replace(/,/g, "").replace(/\s?(am|pm)$/i, (m) => ` ${m.trim().toLowerCase()}`);
+  if (r.kind === "TABLE") return `a table${r.partySize ? ` for ${r.partySize}` : ""} on ${when.replace(/ (\d{1,2}:\d{2})/, " at $1")}`;
+  const items = (r.items ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  return `your takeaway order${items ? ` (${items})` : ""} for pickup on ${when.replace(/ (\d{1,2}:\d{2})/, " at $1")}`;
+}

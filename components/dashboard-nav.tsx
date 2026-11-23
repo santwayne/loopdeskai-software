@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/dashboard/offers", label: "Offers" },
   { href: "/dashboard/counter", label: "Counter" },
   { href: "/dashboard/report", label: "Report", ownerOnly: true },
+  { href: "/dashboard/reviews", label: "Reviews", ownerOnly: true },
   { href: "/dashboard/outlets", label: "Outlets", ownerOnly: true },
   { href: "/dashboard/inbox", label: "Inbox" },
   { href: "/dashboard/qr", label: "QR codes" },

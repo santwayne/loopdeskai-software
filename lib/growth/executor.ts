@@ -7,6 +7,7 @@ import { getSettings, parseJson, withinContactHours } from "@/lib/growth/setting
 import { CUSTOMER_CONTACT, type ActionType } from "@/lib/growth/types";
 import type { MessagePurpose } from "@/lib/types";
 import type { WaTemplateKey } from "@/lib/whatsapp-templates";
+import { createOffer, parseSegments } from "@/lib/offers";
 
 /**
  * ACT: runs one APPROVED action with the right tool.
@@ -28,6 +29,8 @@ type Payload = {
   name?: string; brief?: string; overlay?: string; quoteValue?: number;
   /** Set by the WhatsApp webhook after Meta 131049: don't run again before this time. */
   retryAfter?: string; retried?: boolean;
+  /** SLOW_DAY_OFFER: the offer to create (lib/restaurant.ts slowDayOffer). */
+  offer?: { title: string; message: string; discountPercent: number | null; segments: string[] };
 };
 
 export const WA_TEMPLATE: Partial<Record<ActionType, WaTemplateKey>> = {
@@ -122,6 +125,18 @@ export async function executeAction(actionId: string, now = new Date()): Promise
       }
       case "PROMO_REEL": {
         return await done({ tool: "videoStudio", job: await videoStudio.promoReel(s, { name: p.name ?? "Promo", brief: p.brief ?? "", overlay: p.overlay }) });
+      }
+      case "SLOW_DAY_OFFER": {
+        // The owner approved the action, so the offer is the owner's: it goes out
+        // through Offers (consent, contact hours, 1 marketing message a day).
+        if (!p.offer) return await fail("No offer in the action");
+        const owner = await prisma.user.findUnique({ where: { id: business.ownerId }, select: { id: true, name: true } });
+        if (!owner) return await fail("Business has no owner");
+        const r = await createOffer(business, owner, {
+          title: p.offer.title.slice(0, 80), message: p.offer.message.slice(0, 500), discountPercent: p.offer.discountPercent,
+          freebie: false, segments: parseSegments(p.offer.segments), sendAt: null,
+        }, now);
+        return await done({ tool: "offers", offerId: r.offer.id, approvalNo: r.offer.approvalNo, audience: r.offer.audienceCount });
       }
     }
   } catch (err) {

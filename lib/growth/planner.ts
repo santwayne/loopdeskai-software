@@ -6,6 +6,7 @@ import { gmb, videoStudio, wayneRing } from "@/lib/growth/connectors";
 import { writeCopy, type CopyRequest } from "@/lib/growth/copy";
 import { DAY, autonomyFor, getSettings, isoWeek, localParts, money, parseJson } from "@/lib/growth/settings";
 import { HAS_REAL_PHONE } from "@/lib/instagram-shared";
+import { WEEKDAYS, isRestaurant, restaurantWinbackTitle, slowDayOffer, slowestWeekday } from "@/lib/restaurant";
 import {
   ACTION_LABEL, ACTION_TYPES, BASE_WIN_RATE, CONVERSION_EVENTS, CUSTOMER_CONTACT, GOAL_WEIGHT, HANDLED_EVENTS,
   type ActionType, type GrowthGoal,
@@ -77,6 +78,7 @@ async function conversionsBetween(businessId: string, from: Date, to: Date) {
 async function findCandidates(business: Business & { locations: Location[] }, s: GrowthSettings, now: Date): Promise<Candidate[]> {
   const out: Candidate[] = [];
   const loc = business.locations.find((l) => l.status === "ACTIVE") ?? business.locations[0];
+  const restaurant = isRestaurant(business.sector);
   const callOk = wayneRing.available(s);
 
   // a. Missed leads — called in the last 48h, never got through, no contact since.
@@ -155,7 +157,7 @@ async function findCandidates(business: Business & { locations: Location[] }, s:
   for (const c of quiet) {
     out.push({
       type: "WIN_BACK", customer: c, locationId: c.locationId,
-      title: `Win back ${who(c)}`,
+      title: restaurant && c.visitCount ? restaurantWinbackTitle(who(c), daysAgo(c.lastSeenAt, now)) : `Win back ${who(c)}`,
       reason: winBackReason(c, now),
       value: c.visitCount ? Math.max(s.avgJobValue * 0.5, c.totalSpend / c.visitCount) : s.avgJobValue * 0.5,
       dedupeKey: `WINBACK:${c.id}:${month}`,
@@ -164,8 +166,9 @@ async function findCandidates(business: Business & { locations: Location[] }, s:
     });
   }
 
-  // e. Review requests — visit/job in the last 48h (only when the automatic request is off).
-  if (!business.autoReviewRequest && loc?.googleReviewUrl) {
+  // e. Review requests — visit/job in the last 48h (only when the automatic request
+  // and the restaurant rating loop are off; the loop sends the link to 4–5 stars).
+  if (!business.autoReviewRequest && !business.autoFeedback && loc?.googleReviewUrl) {
     const visits = await prisma.visit.findMany({
       where: { businessId: business.id, occurredAt: { gte: new Date(now.getTime() - 2 * DAY) } },
       include: { customer: true }, orderBy: { occurredAt: "desc" }, take: 30,
@@ -215,11 +218,33 @@ async function findCandidates(business: Business & { locations: Location[] }, s:
   }
   if (slow && videoStudio.available(s)) {
     out.push({
-      type: "PROMO_REEL", title: "Make a 15-second promo Reel for this slow week",
+      type: "PROMO_REEL", title: restaurant ? "Make a 15-second dish Reel for this slow week" : "Make a 15-second promo Reel for this slow week",
       reason: `Bookings this week (${thisWeek}) are behind last week (${lastWeek}).`,
       value: s.avgJobValue, dedupeKey: `REEL:${week}`,
-      payload: { name: `${business.name} — slow week promo ${week}`, brief: `15-second vertical promo for ${business.name}. Friendly, local, ends with "Book today".`, overlay: "Book today" },
+      payload: restaurant
+        ? { name: `${business.name} — dish reel ${week}`, brief: `15-second vertical food reel for ${business.name}: close-ups of the best-selling dishes and drinks, steam and pours, warm lighting, ends with "Order today".`, overlay: "Order today" }
+        : { name: `${business.name} — slow week promo ${week}`, brief: `15-second vertical promo for ${business.name}. Friendly, local, ends with "Book today".`, overlay: "Book today" },
     });
+  }
+
+  // i. Restaurants: on the outlet's slowest weekday, a combo offer to regulars.
+  if (restaurant) {
+    const since = new Date(now.getTime() - 28 * DAY);
+    const recent = await prisma.visit.findMany({ where: { businessId: business.id, occurredAt: { gte: since } }, select: { occurredAt: true } });
+    const byDay = [0, 0, 0, 0, 0, 0, 0];
+    for (const v of recent) byDay[new Date(v.occurredAt.toLocaleString("en-US", { timeZone: s.timezone })).getDay()]++;
+    const slowDay = slowestWeekday(byDay);
+    const todayIdx = new Date(now.toLocaleString("en-US", { timeZone: s.timezone })).getDay();
+    if (slowDay !== null && slowDay === todayIdx) {
+      const offer = slowDayOffer(slowDay, business.name);
+      const avgOthers = Math.round((byDay.reduce((t, n) => t + n, 0) - byDay[slowDay]) / 6 / 4);
+      out.push({
+        type: "SLOW_DAY_OFFER", title: `${WEEKDAYS[slowDay]} is slow — send a combo offer to regulars`,
+        reason: `${WEEKDAYS[slowDay]}s had ${Math.round(byDay[slowDay] / 4)} bills a week over the last 4 weeks, other days about ${avgOthers}.`,
+        value: s.avgJobValue * 3, dedupeKey: `SLOWDAY:${localParts(now, s.timezone).date}`,
+        payload: { offer },
+      });
+    }
   }
   return out;
 }

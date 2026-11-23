@@ -925,3 +925,54 @@ model RedeemRequest {
   @@index([customerId, createdAt])
 }
 
+
+/// Reviews inbox (Restaurant Bundle phase 3): Zomato, Swiggy and other sites.
+/// Google reviews are read live from the GMB tool and not copied here.
+model Review {
+  id           String    @id @default(cuid())
+  businessId   String
+  locationId   String?
+  /// Source: ZOMATO | SWIGGY | GOOGLE | OTHER
+  source       String
+  /// The site's own id (or a hash of reviewer+text) so a review is stored once.
+  externalId   String
+  reviewerName String?
+  rating       Int?
+  text         String?
+  url          String?
+  postedAt     DateTime  @default(now())
+  replyDraft   String?
+  /// Status: NEW | REPLIED | IGNORED
+  status       String    @default("NEW")
+  repliedAt    DateTime?
+  ownerAlerted Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  @@unique([businessId, source, externalId])
+  @@index([businessId, status, postedAt])
+}
+
+/// Table bookings and takeaway orders (Restaurant Bundle phase 3), mostly
+/// taken by the AI receptionist on a call (POST /api/v1/front-desk/reservation).
+model Reservation {
+  id         String   @id @default(cuid())
+  businessId String
+  locationId String
+  customerId String
+  /// Kind: TABLE | TAKEAWAY
+  kind       String
+  partySize  Int?
+  /// Table time, or takeaway pickup time.
+  at         DateTime
+  /// Takeaway: what they ordered, as said on the call.
+  items      String?
+  notes      String?
+  /// Status: BOOKED | CANCELLED | DONE
+  status     String   @default("BOOKED")
+  /// e.g. "call:<call id>" — one reservation per call.
+  source     String?  @unique
+  confirmedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, at])
+}
