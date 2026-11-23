@@ -38,7 +38,9 @@ export type WaTemplateKey =
   | "owner_new_message"
   | "consent_request"
   | "offer"
-  | "owner_approval";
+  | "owner_approval"
+  | "feedback_request"
+  | "birthday_offer";
 
 type Def = {
   key: WaTemplateKey;
@@ -186,6 +188,46 @@ export const WA_TEMPLATE_DEFS: Def[] = [
       hinglish: "Namaste {{1}}, {{2}} ki taraf se aapke liye ek khaas offer: {{3}} Ye messages band karne ke liye STOP likhein.",
       hi: "नमस्ते {{1}}, {{2}} की ओर से आपके लिए एक ख़ास ऑफ़र: {{3}} ये मैसेज बंद करने के लिए STOP लिखें।",
       pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, {{2}} ਵੱਲੋਂ ਤੁਹਾਡੇ ਲਈ ਇੱਕ ਖ਼ਾਸ ਆਫ਼ਰ: {{3}} ਇਹ ਮੈਸੇਜ ਬੰਦ ਕਰਨ ਲਈ STOP ਲਿਖੋ।",
+    },
+  },
+  // ── Restaurant Bundle (Nov 2026): feedback loop + birthday offer ─────
+  {
+    // 1–2 hours after the bill. The reply (1–5) decides what happens next:
+    // 4–5 get the Google/Zomato review link, 1–3 alert the owner privately.
+    key: "feedback_request",
+    category: "UTILITY",
+    audience: "customer",
+    vars: ["customer first name", "business name"],
+    examples: {
+      en: ["Priya", "UJOY Bubble Tea"],
+      hinglish: ["Priya", "UJOY Bubble Tea"],
+      hi: ["प्रिया", "UJOY Bubble Tea"],
+      pa: ["ਪ੍ਰਿਆ", "UJOY Bubble Tea"],
+    },
+    bodies: {
+      en: "Hi {{1}}, thank you for your order at {{2}} today! How was it? Reply with a number from 1 (bad) to 5 (great). Reply STOP to stop these messages.",
+      hinglish: "Namaste {{1}}, aaj {{2}} se order karne ke liye dhanyavaad! Kaisa laga? 1 (bura) se 5 (bahut badhiya) tak number likh kar reply karein. Ye messages band karne ke liye STOP likhein.",
+      hi: "नमस्ते {{1}}, आज {{2}} से ऑर्डर करने के लिए धन्यवाद! कैसा लगा? 1 (बुरा) से 5 (बहुत बढ़िया) तक नंबर लिखकर जवाब दें। ये मैसेज बंद करने के लिए STOP लिखें।",
+      pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, ਅੱਜ {{2}} ਤੋਂ ਆਰਡਰ ਕਰਨ ਲਈ ਧੰਨਵਾਦ! ਕਿਵੇਂ ਲੱਗਿਆ? 1 (ਮਾੜਾ) ਤੋਂ 5 (ਬਹੁਤ ਵਧੀਆ) ਤੱਕ ਨੰਬਰ ਲਿਖ ਕੇ ਜਵਾਬ ਦਿਓ। ਇਹ ਮੈਸੇਜ ਬੰਦ ਕਰਨ ਲਈ STOP ਲਿਖੋ।",
+    },
+  },
+  {
+    // 7 days before the birthday the customer sent us ("BDAY 12/05").
+    key: "birthday_offer",
+    category: "MARKETING",
+    audience: "customer",
+    vars: ["customer first name", "business name", "the birthday treat"],
+    examples: {
+      en: ["Priya", "UJOY Bubble Tea", "a free dessert with any order this week"],
+      hinglish: ["Priya", "UJOY Bubble Tea", "is hafte kisi bhi order ke saath free dessert"],
+      hi: ["प्रिया", "UJOY Bubble Tea", "इस हफ़्ते किसी भी ऑर्डर के साथ मुफ़्त डेज़र्ट"],
+      pa: ["ਪ੍ਰਿਆ", "UJOY Bubble Tea", "ਇਸ ਹਫ਼ਤੇ ਕਿਸੇ ਵੀ ਆਰਡਰ ਨਾਲ ਮੁਫ਼ਤ ਡੈਜ਼ਰਟ"],
+    },
+    bodies: {
+      en: "Hi {{1}}, your birthday is coming up! {{2}} has a treat for you: {{3}}. Show this message at the counter. Reply STOP to stop these messages.",
+      hinglish: "Namaste {{1}}, aapka birthday aa raha hai! {{2}} ki taraf se aapke liye treat: {{3}}. Counter pe ye message dikhayein. Ye messages band karne ke liye STOP likhein.",
+      hi: "नमस्ते {{1}}, आपका जन्मदिन आने वाला है! {{2}} की ओर से आपके लिए तोहफ़ा: {{3}}। काउंटर पर यह मैसेज दिखाएँ। ये मैसेज बंद करने के लिए STOP लिखें।",
+      pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, ਤੁਹਾਡਾ ਜਨਮਦਿਨ ਆ ਰਿਹਾ ਹੈ! {{2}} ਵੱਲੋਂ ਤੁਹਾਡੇ ਲਈ ਤੋਹਫ਼ਾ: {{3}}। ਕਾਊਂਟਰ ਤੇ ਇਹ ਮੈਸੇਜ ਦਿਖਾਓ। ਇਹ ਮੈਸੇਜ ਬੰਦ ਕਰਨ ਲਈ STOP ਲਿਖੋ।",
     },
   },
   // ── To the business owner ─────────────────────────────────────────────
