@@ -40,7 +40,8 @@ export type WaTemplateKey =
   | "offer"
   | "owner_approval"
   | "feedback_request"
-  | "birthday_offer";
+  | "birthday_offer"
+  | "owner_monthly_report";
 
 type Def = {
   key: WaTemplateKey;
@@ -231,6 +232,18 @@ export const WA_TEMPLATE_DEFS: Def[] = [
     },
   },
   // ── To the business owner ─────────────────────────────────────────────
+  {
+    // 1st of the month: what Loopdesk brought in last month (lib/monthly-report.ts).
+    key: "owner_monthly_report",
+    category: "UTILITY",
+    audience: "owner",
+    vars: ["business name", "month", "the month's results on one line"],
+    examples: { en: ["UJOY Bubble Tea", "Nov 2026", "Loopdesk brought in Rs 18,400 · 12 win-backs Rs 6,200 · 9 referred customers Rs 4,100 · 640 bills, Rs 2,10,000 total"] },
+    bodies: {
+      en: "Your {{1}} report for {{2}}: {{3}}. Open Loopdesk AI → Report for the details.",
+      hinglish: "Aapki {{1}} ki {{2}} ki report: {{3}}. Poori detail ke liye Loopdesk AI → Report kholein.",
+    },
+  },
   {
     key: "owner_brief",
     category: "UTILITY",

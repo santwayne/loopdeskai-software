@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOwnerBusiness } from "@/lib/session";
 import { subscribeInstagramWebhooks } from "@/lib/instagram";
+import { POS_PROVIDERS, newPosToken } from "@/lib/pos";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -21,6 +22,11 @@ const updateSchema = z.object({
   instagramAccessToken: z.string().trim().min(20).optional(),
   instagramUsername: z.string().trim().max(60).transform((u) => u.replace(/^@/, "")).nullable().optional(),
   instagramAutoBooking: z.boolean().optional(),
+  // POS sync (Restaurant Bundle): null switches it off and drops the token.
+  posProvider: z.enum(POS_PROVIDERS).nullable().optional(),
+  posRestId: z.string().trim().max(40).nullable().optional(),
+  /** Make a new webhook URL (the old one stops working). */
+  newPosToken: z.literal(true).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -41,8 +47,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const { newPosToken: wantToken, ...fields } = parsed.data;
   const data = {
-    ...parsed.data,
+    ...fields,
+    // Turning POS sync on (or asking for a new URL) makes a fresh token; off drops it.
+    ...((wantToken || (fields.posProvider && !location.posToken)) ? { posToken: newPosToken() } : {}),
+    ...(fields.posProvider === null ? { posToken: null, posRestId: null } : {}),
     // A freshly pasted token starts its 60 days now.
     ...(parsed.data.instagramAccessToken ? { instagramTokenRefreshedAt: new Date() } : {}),
     ...(parsed.data.instagramAccountId === null ? { instagramAccessToken: null, instagramUsername: null, instagramTokenRefreshedAt: null } : {}),

@@ -98,6 +98,7 @@ async function main() {
           country: "IN",
           autoFeedback: true,
           autoBirthday: true,
+          loyaltyEnabled: true,
           birthdayOfferText: "a free brownie sundae with any order on your birthday week",
           locations: {
             create: {
@@ -128,6 +129,9 @@ async function main() {
       businessId: cafe.id, locationId: cafeLocation.id, phone: c.phone, name: c.name, birthday: c.birthday ?? null,
       visitCount: c.bills.length, totalSpend: c.bills.reduce((t, b) => t + b.amount, 0),
       firstSeenAt: sorted[0].at, lastSeenAt: sorted[sorted.length - 1].at, consentStatus: "GRANTED", consentSource: "QR",
+      // Loyalty: 5 points per ₹100 (no tier bonus in demo data), Ishaan has a prepaid wallet.
+      points: c.bills.reduce((t, b) => t + Math.floor(b.amount / 100) * 5, 0), lastBillAt: sorted[sorted.length - 1].at,
+      walletPaise: c.phone === "919830000005" ? 50000 : 0, referralCode: `BOBA${"ABCDEFGH"[Number(c.phone.slice(-1))]}Z`, // valid codes (no 0/1/O/I)
     };
     const customer = await prisma.customer.upsert({ where: { locationId_phone: { locationId: cafeLocation.id, phone: c.phone } }, update: data, create: data });
     for (const [i, b] of c.bills.entries()) {

@@ -53,7 +53,7 @@ export function joinText(code: string, tag?: string | null) {
 
 /** Finds "JOIN K7M2QX [TAG]" anywhere in a message (people sometimes add "hi"). */
 export function parseJoin(text: string | null | undefined): { code: string; tag: string | null } | null {
-  const m = String(text ?? "").match(/\bjoin\s+([a-z0-9]{6})\b(?:\s+([a-z0-9-]{1,20}))?/i);
+  const m = String(text ?? "").match(/\bjoin\s+([a-z0-9]{6})\b(?:\s+(?!ref\b)([a-z0-9-]{1,20}))?/i);
   if (!m) return null;
   const code = m[1].toUpperCase();
   if (![...code].every((ch) => CODE_ALPHABET.includes(ch))) return null;
@@ -236,12 +236,17 @@ export async function applyConsentReply(customer: Customer, decision: "GRANTED" 
   return prisma.customer.update({ where: { id: customer.id }, data: { consentStatus: decision, consentAt: now } });
 }
 
-export async function welcomeText(business: Business, name: string) {
+export async function welcomeText(business: Business, name: string, referralLinkUrl?: string | null) {
   const lang = await businessLanguage(business);
   // Businesses with birthday offers on ask for the birthday right away.
   const ask = business.autoBirthday ? birthdayAsk(lang === "en" ? "en" : "hinglish") : "";
-  if (lang === "en") return `Thank you for joining ${name}! You'll get our offers and updates here.${ask} Reply STOP any time to stop them.`;
-  return `Dhanyavaad! Aap ${name} se jud gaye hain. Offers aur updates yahin milenge.${ask} Band karne ke liye kabhi bhi STOP likhein.`;
+  // Loyalty on: their own link for friends (both get points on the friend's first bill).
+  const pts = business.referralRewardPoints;
+  const share = referralLinkUrl && pts > 0
+    ? (lang === "en" ? ` Share this link with friends — you both get ${pts} points on their first bill: ${referralLinkUrl}` : ` Dost ko ye link bhejein — unke pehle bill pe aap dono ko ${pts} points: ${referralLinkUrl}`)
+    : "";
+  if (lang === "en") return `Thank you for joining ${name}! You'll get our offers and updates here.${ask}${share} Reply STOP any time to stop them.`;
+  return `Dhanyavaad! Aap ${name} se jud gaye hain. Offers aur updates yahin milenge.${ask}${share} Band karne ke liye kabhi bhi STOP likhein.`;
 }
 
 export async function consentAnswerText(business: Business, name: string, decision: "GRANTED" | "DECLINED") {

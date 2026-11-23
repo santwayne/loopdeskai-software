@@ -3,11 +3,13 @@ import { processOffers } from "@/lib/offers";
 import { processQueuedConsentRequests } from "@/lib/onboarding";
 import { requestDueFeedback } from "@/lib/feedback";
 import { sendBirthdayOffers } from "@/lib/birthday";
+import { expireLapsedPoints } from "@/lib/loyalty-db";
+import { sendMonthlyReports } from "@/lib/monthly-report";
 
 // Hourly: offers (expire unanswered approvals at 48h, remind the owner at 24h,
 // send approved offers that are due, in contact hours) and queued YES/NO
 // consent requests (imports), plus the Restaurant Bundle's rating requests
-// (bills 1–3 h old) and birthday offers. Same CRON_SECRET protection as the other crons.
+// (bills 1–3 h old), birthday offers, lapsed points and the 1st-of-month ₹ report. Same CRON_SECRET protection as the other crons.
 async function handle(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 503 });
@@ -17,7 +19,9 @@ async function handle(req: NextRequest) {
   const consent = await processQueuedConsentRequests(now);
   const feedback = await requestDueFeedback(now);
   const birthdays = await sendBirthdayOffers(now);
-  return NextResponse.json({ offers, consent, feedback, birthdays });
+  const points = await expireLapsedPoints(now);
+  const reports = await sendMonthlyReports(now);
+  return NextResponse.json({ offers, consent, feedback, birthdays, points, reports });
 }
 
 export const GET = handle;

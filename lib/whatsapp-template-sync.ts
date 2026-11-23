@@ -1,4 +1,5 @@
 import { allMetaTemplates, type WaLang, type WaTemplateKey } from "@/lib/whatsapp-templates";
+import { otpTemplatePayload } from "@/lib/whatsapp-otp";
 
 /**
  * Submits our templates (lib/whatsapp-templates.ts) to a WhatsApp Business
@@ -67,6 +68,21 @@ export async function submitAllTemplates(wabaId: string, token: string): Promise
     results.push(res.ok
       ? { name: t.name, language: t.language, result: "SUBMITTED", status: data.status }
       : { name: t.name, language: t.language, result: "FAILED", error: data.error?.error_user_msg || data.error?.message || `HTTP ${res.status}` });
+  }
+  // The counter's redeem code (AUTHENTICATION category, Meta's fixed body).
+  const otp = otpTemplatePayload();
+  if (existing.has(`${otp.name}|${otp.language}`)) {
+    results.push({ name: otp.name, language: otp.language, result: "ALREADY_THERE" });
+  } else {
+    const res = await fetch(`${GRAPH}/${wabaId}/message_templates`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(otp),
+    });
+    const data = (await res.json().catch(() => ({}))) as { status?: string; error?: { message?: string; error_user_msg?: string } };
+    results.push(res.ok
+      ? { name: otp.name, language: otp.language, result: "SUBMITTED", status: data.status }
+      : { name: otp.name, language: otp.language, result: "FAILED", error: data.error?.error_user_msg || data.error?.message || `HTTP ${res.status}` });
   }
   return results;
 }

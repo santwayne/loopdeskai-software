@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { runSegmentationForBusiness } from "@/lib/run-segmentation";
 import { sendReviewRequest } from "@/lib/front-desk";
+import { awardForVisit } from "@/lib/loyalty-db";
 
 /**
  * Inbound events from another system (POST /api/v1/events).
@@ -170,6 +171,17 @@ export async function ingestEvents(business: BusinessWithLocations, rawEvents: u
   }
 
   if (changed) await runSegmentationForBusiness(business.id);
+
+  // Loyalty points for every new bill (POS, counter, events API).
+  const loyaltyBusiness = await prisma.business.findUnique({ where: { id: business.id } });
+  if (loyaltyBusiness?.loyaltyEnabled) {
+    for (const [i, r] of results.entries()) {
+      const ev = rawEvents[i] as { type?: string; externalId?: string };
+      if (ev?.type !== "VISIT" || !ev.externalId || r.status === "rejected" || r.status === "duplicate") continue;
+      const visit = await prisma.visit.findUnique({ where: { businessId_externalId: { businessId: business.id, externalId: ev.externalId } } });
+      if (visit) await awardForVisit(loyaltyBusiness, visit).catch(() => null);
+    }
+  }
 
   // Front Desk: "after the visit, a thank-you SMS asks for a Google review".
   const fullBusiness = await prisma.business.findUnique({ where: { id: business.id } });
