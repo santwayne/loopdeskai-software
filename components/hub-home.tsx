@@ -6,6 +6,7 @@ import { DAY, getSettings, money } from "@/lib/growth/settings";
 import { accountData } from "@/lib/hub/provision";
 import { BUNDLE_PLANS, TOOL_META, isBundlePlan, type Tool } from "@/lib/hub/plans";
 import { businessTools, customBundleView } from "@/lib/hub/catalog";
+import { productFitsSector, toolsForSector } from "@/lib/hub/catalog-rules";
 import { TOOL_NAMES } from "@/lib/brand";
 import { ownerChannel } from "@/lib/growth/brief";
 
@@ -44,6 +45,9 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
   } else {
     return null;
   }
+  // Only the tiles that fit this business's industry (no Korvo/Loyvexa for a spa).
+  plan = { ...plan, tools: toolsForSector(plan.tools, business.sector) };
+  manual = manual.filter((m) => productFitsSector(m.product.key, business.sector));
   const s = await getSettings(business);
   const since = new Date(Date.now() - 7 * DAY);
   const [accounts, waiting, won, events, locations] = await Promise.all([

@@ -4,7 +4,8 @@ import { BundleSignupForm } from "@/components/forms/bundle-signup-form";
 import { isBundlePlan } from "@/lib/hub/plans";
 import { getCurrentUser } from "@/lib/session";
 
-// /signup[?plan=GROW&country=CA] → bundle signup (default Grow)
+// /signup[?plan=GROW&country=CA] → bundle signup (default Grow, India/INR
+// unless ?country=CA is passed — most new clients are Indian, Nov 2026)
 export default async function SignupPage({ searchParams }: { searchParams: { plan?: string; country?: string } }) {
   const asked = searchParams.plan?.toUpperCase();
   const plan = isBundlePlan(asked) ? asked : "GROW";
@@ -18,7 +19,7 @@ export default async function SignupPage({ searchParams }: { searchParams: { pla
       )}
       <h1 className="mb-1 text-2xl font-semibold">Start with {BUNDLE_NAME}</h1>
       <p className="mb-8 text-sm text-gray-500">AI receptionist, customer follow-ups, CRM and Google profile — one login, one bill.</p>
-      <BundleSignupForm initialPlan={plan} initialCountry={searchParams.country?.toUpperCase() === "IN" ? "IN" : "CA"} />
+      <BundleSignupForm initialPlan={plan} initialCountry={searchParams.country?.toUpperCase() === "CA" ? "CA" : "IN"} />
       <p className="mt-6 text-sm text-gray-500">
         Already have an account? <Link href="/login" className="font-medium text-brand-700">Log in</Link>
       </p>

@@ -47,7 +47,7 @@ export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan:
   return (
     <form onSubmit={submit} className="w-full max-w-3xl space-y-6">
       <div className="flex justify-end gap-1 text-sm">
-        {(["CA", "IN"] as const).map((c) => (
+        {(["IN", "CA"] as const).map((c) => (
           <button type="button" key={c} onClick={() => setCountry(c)}
             className={clsx("rounded-full px-3 py-1", country === c ? "bg-brand-100 font-medium text-brand-700" : "text-gray-600 hover:bg-gray-100")}>
             {c === "CA" ? "Canada · CAD" : "India · INR"}
