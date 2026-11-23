@@ -23,6 +23,7 @@ export const ACTION_TYPES = [
   "REVIEW_REPLY",           // a Google review has no reply
   "GOOGLE_POST",            // keep the Google profile fresh (offer on slow weeks)
   "PROMO_REEL",             // short promo video on slow weeks
+  "SLOW_DAY_OFFER",         // restaurants: combo offer to regulars on the outlet's slowest weekday
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
@@ -44,6 +45,7 @@ export const DEFAULT_AUTONOMY: Record<ActionType, Autonomy> = {
   REVIEW_REPLY: "APPROVE",
   GOOGLE_POST: "APPROVE",
   PROMO_REEL: "SUGGEST",
+  SLOW_DAY_OFFER: "APPROVE",
 };
 
 /** Short labels for the owner brief and dashboard. */
@@ -56,6 +58,7 @@ export const ACTION_LABEL: Record<ActionType, { one: string; many: (n: number) =
   REVIEW_REPLY: { one: "Reply to a Google review", many: (n) => `Reply to ${n} Google reviews` },
   GOOGLE_POST: { one: "Publish this week's Google post", many: (n) => `Publish ${n} Google posts` },
   PROMO_REEL: { one: "Make a promo Reel", many: (n) => `Make ${n} promo Reels` },
+  SLOW_DAY_OFFER: { one: "Send a slow-day offer to regulars", many: (n) => `Send ${n} slow-day offers` },
 };
 
 /** Actions that contact a customer directly — subject to quiet hours, touch limits and opt-outs. */
@@ -67,7 +70,7 @@ export const GOALS: GrowthGoal[] = ["MORE_BOOKINGS", "MORE_REPEAT_VISITS", "MORE
 /** How much each goal weights each action type when ranking (1 = neutral). */
 export const GOAL_WEIGHT: Record<GrowthGoal, Partial<Record<ActionType, number>>> = {
   MORE_BOOKINGS: { MISSED_LEAD_CALLBACK: 1.5, QUOTE_FOLLOW_UP: 1.4, SERVICE_DUE: 1.1 },
-  MORE_REPEAT_VISITS: { WIN_BACK: 1.5, SERVICE_DUE: 1.4 },
+  MORE_REPEAT_VISITS: { WIN_BACK: 1.5, SERVICE_DUE: 1.4, SLOW_DAY_OFFER: 1.3 },
   MORE_REVIEWS: { REVIEW_REQUEST: 2, REVIEW_REPLY: 1.5 },
 };
 
@@ -81,6 +84,7 @@ export const BASE_WIN_RATE: Record<ActionType, number> = {
   REVIEW_REPLY: 0.02,
   GOOGLE_POST: 0.03,
   PROMO_REEL: 0.03,
+  SLOW_DAY_OFFER: 0.05,
 };
 
 export const ATTRIBUTION_WINDOW_DAYS = 14;

@@ -41,7 +41,8 @@ export type WaTemplateKey =
   | "owner_approval"
   | "feedback_request"
   | "birthday_offer"
-  | "owner_monthly_report";
+  | "owner_monthly_report"
+  | "reservation_confirm";
 
 type Def = {
   key: WaTemplateKey;
@@ -229,6 +230,25 @@ export const WA_TEMPLATE_DEFS: Def[] = [
       hinglish: "Namaste {{1}}, aapka birthday aa raha hai! {{2}} ki taraf se aapke liye treat: {{3}}. Counter pe ye message dikhayein. Ye messages band karne ke liye STOP likhein.",
       hi: "नमस्ते {{1}}, आपका जन्मदिन आने वाला है! {{2}} की ओर से आपके लिए तोहफ़ा: {{3}}। काउंटर पर यह मैसेज दिखाएँ। ये मैसेज बंद करने के लिए STOP लिखें।",
       pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, ਤੁਹਾਡਾ ਜਨਮਦਿਨ ਆ ਰਿਹਾ ਹੈ! {{2}} ਵੱਲੋਂ ਤੁਹਾਡੇ ਲਈ ਤੋਹਫ਼ਾ: {{3}}। ਕਾਊਂਟਰ ਤੇ ਇਹ ਮੈਸੇਜ ਦਿਖਾਓ। ਇਹ ਮੈਸੇਜ ਬੰਦ ਕਰਨ ਲਈ STOP ਲਿਖੋ।",
+    },
+  },
+  {
+    // After the AI receptionist books a table or takes a takeaway order on a call.
+    key: "reservation_confirm",
+    category: "UTILITY",
+    audience: "customer",
+    vars: ["customer first name", "business name", "what was booked, with day and time"],
+    examples: {
+      en: ["Priya", "UJOY Bubble Tea", "a table for 4 on Sat 28 Nov at 9:00 pm"],
+      hinglish: ["Priya", "UJOY Bubble Tea", "Sat 28 Nov raat 9:00 baje 4 logon ki table"],
+      hi: ["प्रिया", "UJOY Bubble Tea", "शनि 28 नवंबर रात 9:00 बजे 4 लोगों की टेबल"],
+      pa: ["ਪ੍ਰਿਆ", "UJOY Bubble Tea", "ਸ਼ਨੀ 28 ਨਵੰਬਰ ਰਾਤ 9:00 ਵਜੇ 4 ਲੋਕਾਂ ਦੀ ਟੇਬਲ"],
+    },
+    bodies: {
+      en: "Hi {{1}}, {{2}} has confirmed {{3}}. To change or cancel, just reply to this message.",
+      hinglish: "Namaste {{1}}, {{2}} ne confirm kar diya hai: {{3}}. Badalna ya cancel karna ho toh is message ka reply karein.",
+      hi: "नमस्ते {{1}}, {{2}} ने पक्का कर दिया है: {{3}}। बदलना या रद्द करना हो तो इस मैसेज का जवाब दें।",
+      pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, {{2}} ਨੇ ਪੱਕਾ ਕਰ ਦਿੱਤਾ ਹੈ: {{3}}। ਬਦਲਣਾ ਜਾਂ ਰੱਦ ਕਰਨਾ ਹੋਵੇ ਤਾਂ ਇਸ ਮੈਸੇਜ ਦਾ ਜਵਾਬ ਦਿਓ।",
     },
   },
   // ── To the business owner ─────────────────────────────────────────────
