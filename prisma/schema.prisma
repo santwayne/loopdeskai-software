@@ -82,6 +82,14 @@ model Business {
   defaultChannel    String  @default("WHATSAPP")
   /// Send a Google review request SMS automatically after each VISIT event.
   autoReviewRequest Boolean @default(false)
+  /// Restaurant Bundle: 1–2 h after each bill ask for a 1–5 rating; 4–5 get
+  /// the review link(s), 1–3 alert the owner privately (lib/feedback.ts).
+  /// When on, it replaces the plain review request above.
+  autoFeedback      Boolean @default(false)
+  /// Send a birthday offer 7 days before birthdays customers sent us.
+  autoBirthday      Boolean @default(false)
+  /// The treat in the birthday message, e.g. "a free dessert with any order this week".
+  birthdayOfferText String?
   /// Instagram DMs → booking add-on (sold on top of the plan, switched on by
   /// a super admin in Admin → Businesses). See lib/instagram.ts.
   instagramAddon    Boolean @default(false)
@@ -179,6 +187,8 @@ model Location {
   /// Prefixed to every customer SMS ("Maple HVAC: ...") — CASL sender ID.
   smsSenderName    String?
   bookingUrl       String?
+  /// Zomato review page, sent with the Google link to 4–5 star ratings.
+  zomatoUrl       String?
   googleReviewUrl  String?
   /// Customer SMS replies are forwarded here (E.164) as well as shown in the inbox.
   ownerNotifyPhone String?
@@ -259,6 +269,11 @@ model Customer {
   lastMissedCallTextAt DateTime?
   lastReviewRequestAt  DateTime?
   lastWinbackAt        DateTime?
+  /// Birthday as "MM-DD" (no year), from a "BDAY 12/05" reply or staff.
+  birthday             String?
+  /// Year the last birthday offer went, so it goes once a year.
+  lastBirthdayOfferYear Int?
+  lastFeedbackRequestAt DateTime?
 
   // ── Marketing consent (onboarding flow, Nov 2026) ───────────────────────
   // Offers, win-backs and other marketing go only to IMPLIED or GRANTED.
@@ -345,8 +360,15 @@ model Visit {
   /// double-counts a visit. Null for WhatsApp-captured visits.
   externalId String?
 
+  // Restaurant Bundle feedback loop (lib/feedback.ts)
+  feedbackRequestedAt DateTime?
+  /// 1–5, from the customer's reply.
+  rating              Int?
+  ratedAt             DateTime?
+
   @@unique([businessId, externalId])
   @@index([businessId, customerId])
+  @@index([businessId, occurredAt])
   @@index([locationId])
 }
 

@@ -5,6 +5,7 @@ import { getCurrentBusiness } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SegmentBadge } from "@/components/segment-badge";
 import { computeSegment, computeSpendPercentileThreshold, DEFAULT_THRESHOLDS } from "@/lib/segmentation";
+import { termsForSector } from "@/lib/restaurant";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 // prisma/schema.prisma). This page is read-only and purely additive.
 export default async function UnifiedCustomersPage() {
   const business = await getCurrentBusiness();
+  const terms = termsForSector(business?.sector);
   if (!business) return null;
   const settings = await getSettings(business);
 
@@ -84,8 +86,8 @@ export default async function UnifiedCustomersPage() {
                 <th className="px-4 py-2 font-medium">Customer</th>
                 <th className="px-4 py-2 font-medium">Locations visited</th>
                 <th className="px-4 py-2 font-medium">Unified segment</th>
-                <th className="px-4 py-2 font-medium">Total visits</th>
-                <th className="px-4 py-2 font-medium">Total spend</th>
+                <th className="px-4 py-2 font-medium">Total {terms.visits.toLowerCase()}</th>
+                <th className="px-4 py-2 font-medium">{terms.totalSpend}</th>
                 <th className="px-4 py-2 font-medium">Last seen</th>
               </tr>
             </thead>

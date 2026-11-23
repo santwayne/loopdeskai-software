@@ -8,6 +8,7 @@ import { sharedDisplayNumber, whatsappSenderFor } from "@/lib/whatsapp-sender";
 import { HAS_REAL_PHONE } from "@/lib/instagram-shared";
 import { getSettings, withinContactHours } from "@/lib/growth/settings";
 import type { SendResult } from "@/lib/sms";
+import { birthdayAsk } from "@/lib/restaurant";
 
 /**
  * Customer onboarding (Nov 2026). A customer joins a business in one of these ways:
@@ -237,8 +238,10 @@ export async function applyConsentReply(customer: Customer, decision: "GRANTED" 
 
 export async function welcomeText(business: Business, name: string) {
   const lang = await businessLanguage(business);
-  if (lang === "en") return `Thank you for joining ${name}! You'll get our offers and updates here. Reply STOP any time to stop them.`;
-  return `Dhanyavaad! Aap ${name} se jud gaye hain. Offers aur updates yahin milenge. Band karne ke liye kabhi bhi STOP likhein.`;
+  // Businesses with birthday offers on ask for the birthday right away.
+  const ask = business.autoBirthday ? birthdayAsk(lang === "en" ? "en" : "hinglish") : "";
+  if (lang === "en") return `Thank you for joining ${name}! You'll get our offers and updates here.${ask} Reply STOP any time to stop them.`;
+  return `Dhanyavaad! Aap ${name} se jud gaye hain. Offers aur updates yahin milenge.${ask} Band karne ke liye kabhi bhi STOP likhein.`;
 }
 
 export async function consentAnswerText(business: Business, name: string, decision: "GRANTED" | "DECLINED") {

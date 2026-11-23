@@ -13,6 +13,8 @@ import { smsConfigured } from "@/lib/sms";
 import { handleStaffMessage } from "@/lib/staff";
 import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, parseJoin, welcomeText } from "@/lib/onboarding";
 import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact } from "@/lib/hub/tool-whatsapp";
+import { handleRatingReply } from "@/lib/feedback";
+import { handleBirthdayReply } from "@/lib/birthday";
 
 // GET — Meta's webhook verification handshake. Each Location gets its own
 // whatsappVerifyToken (shown on the Settings page); we also accept the
@@ -294,6 +296,12 @@ export async function POST(req: NextRequest) {
             const answered = await applyConsentReply(customer, decision, now);
             await sendCustomerWhatsApp({ business, location, customer: answered, purpose: "OTHER", text: await consentAnswerText(business, senderName(location, business), decision), now });
             automatic = true;
+          } else if (!optOut && (await handleRatingReply(business, location, customer, text, now))) {
+            // A 1–5 answer to the feedback request (Restaurant Bundle). Low
+            // ratings alert the owner inside handleRatingReply.
+            automatic = true;
+          } else if (!optOut && (await handleBirthdayReply(business, location, customer, text, now))) {
+            automatic = true; // "BDAY 12/05"
           }
           if (automatic) await prisma.message.update({ where: { id: stored.id }, data: { readAt: now } });
 

@@ -81,6 +81,70 @@ async function main() {
   await runSegmentationForBusiness(salon.id);
   await runSegmentationForBusiness(clinic.id);
 
+  // ── Restaurant Bundle demo (Nov 2026): a bubble tea / dessert café ──────
+  // Made-up brand (the login is public): bills with amounts, ratings from the
+  // feedback loop (one low rating the owner was alerted about) and birthdays.
+  const cafeOwner = await prisma.user.upsert({
+    where: { email: "owner@bobabay-cafe.demo" },
+    update: {},
+    create: {
+      name: "Harleen Kaur",
+      email: "owner@bobabay-cafe.demo",
+      passwordHash,
+      businesses: {
+        create: {
+          name: "Boba Bay Café",
+          sector: "RESTAURANT",
+          country: "IN",
+          autoFeedback: true,
+          autoBirthday: true,
+          birthdayOfferText: "a free brownie sundae with any order on your birthday week",
+          locations: {
+            create: {
+              name: "Boba Bay Café, Sarabha Nagar",
+              googleReviewUrl: "https://g.page/r/boba-bay-cafe-demo/review",
+              zomatoUrl: "https://www.zomato.com/ludhiana/boba-bay-cafe-demo",
+            },
+          },
+        },
+      },
+    },
+    include: { businesses: { include: { locations: true } } },
+  });
+  const cafe = cafeOwner.businesses[0];
+  const cafeLocation = cafe.locations[0];
+  const hoursAgo = (n: number) => new Date(now - n * 60 * 60 * 1000);
+  const cafeCustomers: { phone: string; name: string; birthday?: string; bills: { at: Date; amount: number; rating?: number }[] }[] = [
+    { phone: "919830000001", name: "Simran Gill", birthday: "12-02", bills: [{ at: daysAgo(40), amount: 420, rating: 5 }, { at: daysAgo(55), amount: 380 }, { at: daysAgo(70), amount: 510 }] },
+    { phone: "919830000002", name: "Arjun Bedi", bills: [{ at: daysAgo(2), amount: 650, rating: 5 }, { at: daysAgo(9), amount: 300 }, { at: daysAgo(16), amount: 480, rating: 4 }, { at: daysAgo(23), amount: 520 }] },
+    { phone: "919830000003", name: "Navneet Sandhu", birthday: "07-19", bills: [{ at: daysAgo(1), amount: 260, rating: 2 }] },
+    { phone: "919830000004", name: "Kavya Arora", bills: [{ at: hoursAgo(2), amount: 340 }] },
+    { phone: "919830000005", name: "Ishaan Malhi", birthday: "03-08", bills: [{ at: daysAgo(6), amount: 1250, rating: 5 }, { at: daysAgo(13), amount: 980 }, { at: daysAgo(20), amount: 1100 }, { at: daysAgo(27), amount: 1320 }, { at: daysAgo(34), amount: 890 }] },
+    { phone: "919830000006", name: "Tanya Chopra", bills: [{ at: daysAgo(95), amount: 220 }, { at: daysAgo(120), amount: 310 }] },
+  ];
+  for (const c of cafeCustomers) {
+    const sorted = [...c.bills].sort((a, b) => a.at.getTime() - b.at.getTime());
+    const data = {
+      businessId: cafe.id, locationId: cafeLocation.id, phone: c.phone, name: c.name, birthday: c.birthday ?? null,
+      visitCount: c.bills.length, totalSpend: c.bills.reduce((t, b) => t + b.amount, 0),
+      firstSeenAt: sorted[0].at, lastSeenAt: sorted[sorted.length - 1].at, consentStatus: "GRANTED", consentSource: "QR",
+    };
+    const customer = await prisma.customer.upsert({ where: { locationId_phone: { locationId: cafeLocation.id, phone: c.phone } }, update: data, create: data });
+    for (const [i, b] of c.bills.entries()) {
+      const asked = b.rating != null ? new Date(b.at.getTime() + 90 * 60 * 1000) : null;
+      await prisma.visit.upsert({
+        where: { businessId_externalId: { businessId: cafe.id, externalId: `demo-${c.phone}-${i}` } },
+        update: {},
+        create: {
+          businessId: cafe.id, locationId: cafeLocation.id, customerId: customer.id, amount: b.amount, occurredAt: b.at,
+          source: "pos:demo", externalId: `demo-${c.phone}-${i}`,
+          feedbackRequestedAt: asked, rating: b.rating ?? null, ratedAt: asked ? new Date(asked.getTime() + 20 * 60 * 1000) : null,
+        },
+      });
+    }
+  }
+  await runSegmentationForBusiness(cafe.id);
+
   await prisma.user.upsert({
     where: { email: "admin@regulars.demo" },
     update: { role: "SUPER_ADMIN" },
@@ -95,6 +159,7 @@ async function main() {
   console.log("Seeded demo data:");
   console.log("  Salon login: owner@glow-salon.demo / password123");
   console.log("  Clinic login: owner@wellness-clinic.demo / password123");
+  console.log("  Restaurant login: owner@bobabay-cafe.demo / password123");
   console.log("  Super admin login: admin@regulars.demo / password123 (/admin)");
 }
 

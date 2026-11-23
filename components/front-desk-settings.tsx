@@ -54,6 +54,24 @@ export function FrontDeskSettings({ business, locations }: { business: Business;
         {msg && <span className="text-gray-500">{msg}</span>}
       </div>
 
+      <div className="space-y-2 rounded-card border border-gray-100 p-4 text-sm">
+        <h3 className="font-medium">Ratings and birthdays</h3>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" defaultChecked={business.autoFeedback} onChange={(e) => patchBusiness({ autoFeedback: e.target.checked })} />
+          <span>Ask for a 1–5 rating 1–2 hours after each bill. 4–5 stars get your Google (and Zomato) review link; 1–3 stars come only to you on WhatsApp, never to a public page. Replaces the review request above.</span>
+        </label>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" defaultChecked={business.autoBirthday} onChange={(e) => patchBusiness({ autoBirthday: e.target.checked })} />
+          <span>Birthday offers: the welcome message asks for the birthday (customers reply like <code>BDAY 12/05</code>) and we send a treat 7 days before.</span>
+        </label>
+        <label className="block">
+          <span className="text-gray-600">Birthday treat</span>
+          <input defaultValue={business.birthdayOfferText ?? ""} maxLength={120} placeholder="a free dessert with any order on your birthday week"
+            onBlur={(e) => patchBusiness({ birthdayOfferText: e.target.value.trim() || null })}
+            className="mt-1 w-full rounded-input border border-control px-3 py-2" />
+        </label>
+      </div>
+
       {locations.map((l) => <LocationSms key={l.id} location={l} />)}
 
       <CsvImport locations={locations} country={business.country} />
@@ -68,6 +86,7 @@ function LocationSms({ location }: { location: Location }) {
     smsSenderName: location.smsSenderName ?? "",
     bookingUrl: location.bookingUrl ?? "",
     googleReviewUrl: location.googleReviewUrl ?? "",
+    zomatoUrl: location.zomatoUrl ?? "",
     ownerNotifyPhone: location.ownerNotifyPhone ?? "",
   });
   const [status, setStatus] = useState<string | null>(null);
@@ -102,6 +121,7 @@ function LocationSms({ location }: { location: Location }) {
         {field("ownerNotifyPhone", "Forward customer replies to", "+14165550123")}
         {field("bookingUrl", "Booking link", "https://cal.com/maple-hvac")}
         {field("googleReviewUrl", "Google review link", "https://g.page/r/…/review")}
+        {field("zomatoUrl", "Zomato page (restaurants, optional)", "https://www.zomato.com/ludhiana/…")}
       </div>
       <div className="flex items-center gap-3">
         <button className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800">Save</button>

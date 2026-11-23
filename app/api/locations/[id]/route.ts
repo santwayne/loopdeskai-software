@@ -14,6 +14,7 @@ const updateSchema = z.object({
   smsSenderName: z.string().trim().max(40).nullable().optional(),
   bookingUrl: z.string().url().nullable().optional(),
   googleReviewUrl: z.string().url().nullable().optional(),
+  zomatoUrl: z.string().url().regex(/^https:\/\//, "Use the https:// link").nullable().optional(),
   ownerNotifyPhone: z.string().regex(/^\+\d{10,15}$/, "Use international format, e.g. +14165550123").nullable().optional(),
   // Instagram DMs → booking (add-on). null disconnects the account.
   instagramAccountId: z.string().trim().regex(/^\d{5,25}$/, "Instagram account ID is a number, e.g. 17841400000000000").nullable().optional(),

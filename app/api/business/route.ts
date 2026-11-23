@@ -7,6 +7,10 @@ const patchSchema = z.object({
   defaultChannel: z.enum(["WHATSAPP", "SMS"]).optional(),
   country: z.string().length(2).transform((c) => c.toUpperCase()).optional(),
   autoReviewRequest: z.boolean().optional(),
+  // Restaurant Bundle: rating loop + birthday offers (lib/feedback.ts, lib/birthday.ts)
+  autoFeedback: z.boolean().optional(),
+  autoBirthday: z.boolean().optional(),
+  birthdayOfferText: z.string().trim().max(120).nullable().optional(),
 });
 
 // PATCH /api/business — owner-editable messaging settings. Plan and SMS

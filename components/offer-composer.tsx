@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { OfferTemplate } from "@/lib/restaurant";
 
 const SEGMENTS = [
   { id: "REGULAR", label: "Regulars" },
@@ -13,7 +14,7 @@ const SEGMENTS = [
 
 type Limits = { approvalMaxDiscount: number; approvalMaxAudience: number; approvalAutoFreebie: boolean };
 
-export function OfferComposer({ isOwner, limits }: { isOwner: boolean; limits: Limits }) {
+export function OfferComposer({ isOwner, limits, templates = [] }: { isOwner: boolean; limits: Limits; templates?: OfferTemplate[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -30,6 +31,11 @@ export function OfferComposer({ isOwner, limits }: { isOwner: boolean; limits: L
     fetch(`/api/offers/audience?segments=${segments.join(",")}`).then((r) => r.json()).then((d) => { if (live) setAudience(typeof d.count === "number" ? d.count : null); }).catch(() => {});
     return () => { live = false; };
   }, [segments]);
+
+  function applyTemplate(t: OfferTemplate) {
+    setTitle(t.title); setMessage(t.message);
+    setDiscount(t.discountPercent != null ? String(t.discountPercent) : ""); setFreebie(t.freebie); setSegments(t.segments);
+  }
 
   const pct = discount ? Number(discount) : 0;
   const needsOwner = !isOwner && (pct > limits.approvalMaxDiscount || (audience ?? 0) > limits.approvalMaxAudience || (freebie && !limits.approvalAutoFreebie));
@@ -60,6 +66,15 @@ export function OfferComposer({ isOwner, limits }: { isOwner: boolean; limits: L
   return (
     <form onSubmit={submit} className="space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">
       <h2 className="font-medium">New offer</h2>
+      {templates.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-gray-600">Start from:</span>
+          {templates.map((t) => (
+            <button type="button" key={t.id} onClick={() => applyTemplate(t)}
+              className="rounded-full border border-control px-3 py-1 hover:bg-gray-50">{t.title}</button>
+          ))}
+        </div>
+      )}
       <input className={input} placeholder="Title, e.g. Weekend hair spa offer" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} required />
       <textarea className={input} rows={3} placeholder="What customers read, e.g. 20% off any hair spa this Saturday and Sunday. Show this message at the counter." value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} required />
       <p className="text-xs text-gray-500">It goes out as: &quot;Hi Priya, a special offer from your business: <i>your message</i> Reply STOP to stop these messages.&quot;</p>

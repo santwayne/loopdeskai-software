@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { SegmentBadge } from "@/components/segment-badge";
 import { formatDate } from "@/lib/format";
 import { isInstagramOnly } from "@/lib/instagram-shared";
+import { termsForSector } from "@/lib/restaurant";
 
 type CustomerWithLocation = Customer & { location?: { name: string } };
 
@@ -14,14 +15,18 @@ export function CustomerTable({
   showLocation = false,
   country,
   bundle = false,
+  sector,
 }: {
   customers: CustomerWithLocation[];
   showLocation?: boolean;
   country?: string | null;
   /** Bundle owners get AI follow-ups from Growth AI, so no manual scripts. */
   bundle?: boolean;
+  /** RESTAURANT shows "Orders" instead of "Visits". */
+  sector?: string | null;
 }) {
   const router = useRouter();
+  const terms = termsForSector(sector);
 
   async function removeData(id: string, label: string) {
     if (!window.confirm(`Permanently remove ${label}'s data? This can't be undone.`)) return;
@@ -93,7 +98,7 @@ export function CustomerTable({
             <th className="px-4 py-2 font-medium">Customer</th>
             {showLocation && <th className="px-4 py-2 font-medium">Location</th>}
             <th className="px-4 py-2 font-medium">Segment</th>
-            <th className="px-4 py-2 font-medium">Visits</th>
+            <th className="px-4 py-2 font-medium">{terms.visits}</th>
             <th className="px-4 py-2 font-medium">Last seen</th>
             <th className="px-4 py-2 font-medium"></th>
           </tr>

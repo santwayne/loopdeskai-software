@@ -5,6 +5,7 @@ import { offerSummary } from "@/lib/offers";
 import { OfferComposer } from "@/components/offer-composer";
 import { OfferActions } from "@/components/offer-actions";
 import { ApprovalLimitsForm } from "@/components/approval-limits-form";
+import { offerTemplatesFor } from "@/lib/restaurant";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function OffersPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} /></div>
+        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} templates={offerTemplatesFor(business.sector)} /></div>
         {isOwner && <ApprovalLimitsForm limits={limits} sector={business.sector} />}
       </div>
 

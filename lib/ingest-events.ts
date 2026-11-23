@@ -173,7 +173,9 @@ export async function ingestEvents(business: BusinessWithLocations, rawEvents: u
 
   // Front Desk: "after the visit, a thank-you SMS asks for a Google review".
   const fullBusiness = await prisma.business.findUnique({ where: { id: business.id } });
-  if (fullBusiness?.autoReviewRequest && fullBusiness.status === "ACTIVE") {
+  // With the rating loop on (autoFeedback), the review link goes only to 4–5
+  // star answers instead (lib/feedback.ts), so the plain request is skipped.
+  if (fullBusiness?.autoReviewRequest && !fullBusiness.autoFeedback && fullBusiness.status === "ACTIVE") {
     for (const [i, r] of results.entries()) {
       const ev = rawEvents[i] as { type?: string };
       if (ev?.type !== "VISIT" || r.status === "rejected" || r.status === "duplicate") continue;
