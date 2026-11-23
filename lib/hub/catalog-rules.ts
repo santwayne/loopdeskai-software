@@ -56,6 +56,30 @@ export function businessTools(b: { customBundleId: string | null; bundleTools: s
   return b.customBundleId ? decodeTools(b.bundleTools) : planTools(b.frontDeskPlan);
 }
 
+/**
+ * Distributor/dealer software (Korvo, Loyvexa) only makes sense for
+ * businesses that sell through dealers. A spa, salon, gym, clinic, restaurant
+ * or home-services owner never sees their tiles, even if a bundle includes
+ * them (Nov 2026: "Spa ke bundle mein Loyvexa/Korvo na dikhe").
+ */
+export const DEALER_TOOLS: Tool[] = ["KORVO", "LOYVEXA"];
+export const DEALER_PRODUCT_KEYS = ["korvo", "loyvexa"];
+const DEALER_SECTORS = new Set(["MANUFACTURER", "RETAIL", "OTHER"]);
+
+export function sectorShowsDealerTools(sector: string | null | undefined) {
+  return DEALER_SECTORS.has((sector ?? "").toUpperCase());
+}
+
+/** The tools whose tiles a business of this sector sees on its home page. */
+export function toolsForSector(tools: Tool[], sector: string | null | undefined): Tool[] {
+  return sectorShowsDealerTools(sector) ? tools : tools.filter((t) => !DEALER_TOOLS.includes(t));
+}
+
+/** Same rule for catalog products (by key), e.g. manual set-ups. */
+export function productFitsSector(productKey: string, sector: string | null | undefined) {
+  return sectorShowsDealerTools(sector) || !DEALER_PRODUCT_KEYS.includes(productKey);
+}
+
 /** Days one payment covers. */
 export const periodDays = (interval: string) => (interval === "YEARLY" ? 365 : 30);
 
