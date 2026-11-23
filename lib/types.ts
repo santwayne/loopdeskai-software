@@ -48,7 +48,7 @@ export const FRONT_DESK_SMS_LIMIT: Record<FrontDeskPlan, number | null> = {
   GROW: 1000,
 };
 
-export type LogSource = "PRIVACY" | "WEBHOOK" | "CALLING_SCRIPT" | "BILLING" | "AUTH" | "API" | "SMS" | "GROWTH" | "WHATSAPP" | "INSTAGRAM" | "OFFER" | "CONSENT";
+export type LogSource = "PRIVACY" | "WEBHOOK" | "CALLING_SCRIPT" | "BILLING" | "AUTH" | "API" | "SMS" | "GROWTH" | "WHATSAPP" | "INSTAGRAM" | "OFFER" | "CONSENT" | "POS" | "LOYALTY" | "REPORT";
 export type LogLevel = "INFO" | "WARN" | "ERROR";
 
 export type PaymentStatus = "CREATED" | "PAID" | "FAILED";

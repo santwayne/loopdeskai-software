@@ -58,7 +58,7 @@ export async function sendBirthdayOffers(now = new Date(), perBusiness = 300) {
       done++;
       const first = (c.name ?? "").trim().split(/\s+/)[0] || "ji";
       const r = await sendCustomerWhatsApp({
-        business, location: c.location, customer: c, purpose: "OTHER", templateKey: "birthday_offer",
+        business, location: c.location, customer: c, purpose: "OFFER", templateKey: "birthday_offer",
         params: [first, senderName(c.location, business), business.birthdayOfferText?.trim() || DEFAULT_BIRTHDAY_TREAT], now,
       });
       if (r?.ok) sent++;

@@ -90,6 +90,25 @@ model Business {
   autoBirthday      Boolean @default(false)
   /// The treat in the birthday message, e.g. "a free dessert with any order this week".
   birthdayOfferText String?
+
+  // ── Restaurant Bundle phase 2: loyalty (lib/loyalty.ts) ─────────────────
+  /// Points on bills, tiers, wallet and OTP redeem at the counter.
+  loyaltyEnabled       Boolean @default(false)
+  pointsPer100         Int     @default(5)
+  /// 1 point = this many paise (100 = ₹1).
+  pointValuePaise      Int     @default(100)
+  /// Balance lapses after this many days without a bill.
+  pointsExpiryDays     Int     @default(180)
+  minRedeemPoints      Int     @default(50)
+  /// Spend (₹) in the last 365 days for Gold / VIP.
+  tierGoldSpend        Int     @default(5000)
+  tierVipSpend         Int     @default(15000)
+  /// Points each to the customer and the friend they referred, on the friend's first bill.
+  referralRewardPoints Int     @default(50)
+  /// Monthly "Loopdesk earned you ₹X" report to the owner on the 1st.
+  monthlyReport        Boolean @default(true)
+  /// "2026-11" — the month the last report covered, so it goes once.
+  lastMonthlyReportFor String?
   /// Instagram DMs → booking add-on (sold on top of the plan, switched on by
   /// a super admin in Admin → Businesses). See lib/instagram.ts.
   instagramAddon    Boolean @default(false)
@@ -189,6 +208,12 @@ model Location {
   bookingUrl       String?
   /// Zomato review page, sent with the Google link to 4–5 star ratings.
   zomatoUrl       String?
+  // POS sync (phase 2): bills arrive at /api/v1/pos/<provider>/<posToken>.
+  /// petpooja | generic
+  posProvider     String?
+  posToken        String?  @unique
+  /// The POS's own id for this outlet (Petpooja restID), checked on each bill.
+  posRestId       String?
   googleReviewUrl  String?
   /// Customer SMS replies are forwarded here (E.164) as well as shown in the inbox.
   ownerNotifyPhone String?
@@ -274,6 +299,18 @@ model Customer {
   /// Year the last birthday offer went, so it goes once a year.
   lastBirthdayOfferYear Int?
   lastFeedbackRequestAt DateTime?
+
+  // Loyalty (phase 2)
+  points             Int       @default(0)
+  walletPaise        Int       @default(0)
+  /// Bill time used for points expiry and tiers.
+  lastBillAt         DateTime?
+  /// This customer's code for friends (JOIN … REF <code>).
+  referralCode       String?   @unique
+  /// Who referred them (a Customer id in the same business).
+  referredById       String?
+  referralRewardedAt DateTime?
+  loyaltyEntries     LoyaltyEntry[]
 
   // ── Marketing consent (onboarding flow, Nov 2026) ───────────────────────
   // Offers, win-backs and other marketing go only to IMPLIED or GRANTED.
@@ -846,3 +883,45 @@ model HubWaMessage {
 
   @@index([createdAt])
 }
+
+/// Points and wallet movements (phase 2). Signed: +earn/top-up, −redeem/spend/expiry.
+model LoyaltyEntry {
+  id          String   @id @default(cuid())
+  businessId  String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  locationId  String?
+  /// Type: EARN | REDEEM | EXPIRE | REFERRAL | ADJUST | WALLET_TOPUP | WALLET_SPEND
+  type        String
+  points      Int      @default(0)
+  walletPaise Int      @default(0)
+  /// For EARN: the bill. Unique so a bill never earns twice.
+  visitId     String?  @unique
+  note        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+/// WhatsApp code that must be read back at the counter before points or wallet are used.
+model RedeemRequest {
+  id          String    @id @default(cuid())
+  businessId  String
+  customerId  String
+  locationId  String?
+  /// Kind: POINTS | WALLET
+  kind        String
+  /// Points, or paise for WALLET.
+  amount      Int
+  codeHash    String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  attempts    Int       @default(0)
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([customerId, createdAt])
+}
+

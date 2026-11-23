@@ -11,6 +11,16 @@ const patchSchema = z.object({
   autoFeedback: z.boolean().optional(),
   autoBirthday: z.boolean().optional(),
   birthdayOfferText: z.string().trim().max(120).nullable().optional(),
+  // Loyalty (lib/loyalty.ts)
+  loyaltyEnabled: z.boolean().optional(),
+  pointsPer100: z.number().int().min(0).max(100).optional(),
+  pointValuePaise: z.number().int().min(1).max(10_000).optional(),
+  pointsExpiryDays: z.number().int().min(0).max(3650).optional(),
+  minRedeemPoints: z.number().int().min(1).max(100_000).optional(),
+  tierGoldSpend: z.number().int().min(0).max(10_000_000).optional(),
+  tierVipSpend: z.number().int().min(0).max(10_000_000).optional(),
+  referralRewardPoints: z.number().int().min(0).max(100_000).optional(),
+  monthlyReport: z.boolean().optional(),
 });
 
 // PATCH /api/business — owner-editable messaging settings. Plan and SMS

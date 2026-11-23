@@ -7,7 +7,7 @@ import { logEvent } from "@/lib/logger";
 import { handleOwnerReply } from "@/lib/growth/brief";
 import { sendOwnerSms, senderName } from "@/lib/sms";
 import { ownerWhatsAppSender, sendCustomerWhatsApp, sendOwnerWhatsApp } from "@/lib/whatsapp-send";
-import { sharedCountries, waErrorText } from "@/lib/whatsapp-sender";
+import { sharedCountries, sharedDisplayNumber, waErrorText } from "@/lib/whatsapp-sender";
 import { onMessageDeliveryFailed } from "@/lib/growth/delivery";
 import { smsConfigured } from "@/lib/sms";
 import { handleStaffMessage } from "@/lib/staff";
@@ -15,6 +15,8 @@ import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, par
 import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact } from "@/lib/hub/tool-whatsapp";
 import { handleRatingReply } from "@/lib/feedback";
 import { handleBirthdayReply } from "@/lib/birthday";
+import { parseReferral, referralLink } from "@/lib/loyalty";
+import { applyReferralOnJoin, ensureReferralCode } from "@/lib/loyalty-db";
 
 // GET — Meta's webhook verification handshake. Each Location gets its own
 // whatsappVerifyToken (shown on the Settings page); we also accept the
@@ -290,7 +292,15 @@ export async function POST(req: NextRequest) {
           const decision = !optOut && customer.consentStatus === "PENDING" ? parseConsentReply(text) : null;
           if (join && location.joinCode === join.code) {
             const joined = await applyJoin(customer, join.tag, now);
-            await sendCustomerWhatsApp({ business, location, customer: joined, purpose: "OTHER", text: await welcomeText(business, senderName(location, business)), now });
+            // Loyalty: "JOIN … REF ABC234" links the friend who shared it; everyone gets their own link.
+            let shareLink: string | null = null;
+            if (business.loyaltyEnabled) {
+              const ref = parseReferral(text);
+              if (ref) await applyReferralOnJoin(joined, ref).catch(() => false);
+              const code = await ensureReferralCode(joined).catch(() => null);
+              if (code && location.joinCode) shareLink = referralLink(location.whatsappDisplayNumber ?? sharedDisplayNumber(), location.joinCode, code);
+            }
+            await sendCustomerWhatsApp({ business, location, customer: joined, purpose: "OTHER", text: await welcomeText(business, senderName(location, business), shareLink), now });
             automatic = true;
           } else if (decision) {
             const answered = await applyConsentReply(customer, decision, now);

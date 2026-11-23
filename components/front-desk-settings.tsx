@@ -72,11 +72,48 @@ export function FrontDeskSettings({ business, locations }: { business: Business;
         </label>
       </div>
 
+      <LoyaltySettings business={business} patch={patchBusiness} />
+
       {locations.map((l) => <LocationSms key={l.id} location={l} />)}
 
       <CsvImport locations={locations} country={business.country} />
       <Winback />
     </section>
+  );
+}
+
+/** Points, tiers, wallet, referrals and the monthly ₹ report (Restaurant Bundle). */
+function LoyaltySettings({ business, patch }: { business: Business; patch: (d: Record<string, unknown>) => Promise<void> }) {
+  const num = (k: keyof Business, label: string, hint: string, scale = 1) => (
+    <label className="block">
+      <span className="text-gray-600">{label}</span>
+      <input type="number" min={0} defaultValue={Number(business[k]) / scale}
+        onBlur={(e) => { const v = Math.round(Number(e.target.value) * scale); if (Number.isFinite(v) && v !== business[k]) patch({ [k]: v }); }}
+        className="mt-1 w-full rounded-input border border-control px-3 py-2" />
+      <span className="text-xs text-gray-500">{hint}</span>
+    </label>
+  );
+  return (
+    <div className="space-y-3 rounded-card border border-gray-100 p-4 text-sm">
+      <h3 className="font-medium">Loyalty</h3>
+      <label className="flex items-start gap-2">
+        <input type="checkbox" className="mt-1" defaultChecked={business.loyaltyEnabled} onChange={(e) => patch({ loyaltyEnabled: e.target.checked })} />
+        <span>Points on every bill, Silver / Gold / VIP tiers, prepaid wallet and friend referrals. Points and wallet are used at the Counter with a WhatsApp code. Gold earns 1.25×, VIP 1.5×.</span>
+      </label>
+      <div className="grid gap-3 md:grid-cols-4">
+        {num("pointsPer100", "Points per ₹100", "on each bill")}
+        {num("pointValuePaise", "₹ value of 1 point", "e.g. 1 = ₹1", 100)}
+        {num("minRedeemPoints", "Minimum points to use", "per redeem")}
+        {num("pointsExpiryDays", "Points lapse after (days)", "with no bill; 0 = never")}
+        {num("tierGoldSpend", "Gold from (₹ / year)", "spend in the last 365 days")}
+        {num("tierVipSpend", "VIP from (₹ / year)", "spend in the last 365 days")}
+        {num("referralRewardPoints", "Referral points", "each, on the friend's first bill")}
+      </div>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" defaultChecked={business.monthlyReport} onChange={(e) => patch({ monthlyReport: e.target.checked })} />
+        Send me the monthly &quot;Loopdesk brought in ₹X&quot; report on WhatsApp on the 1st
+      </label>
+    </div>
   );
 }
 
@@ -127,7 +164,50 @@ function LocationSms({ location }: { location: Location }) {
         <button className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800">Save</button>
         {status && <span className="text-sm text-gray-500">{status}</span>}
       </div>
+      <PosSync location={location} />
     </form>
+  );
+}
+
+/** POS sync for one outlet: bills arrive at /api/v1/pos/<provider>/<token>. */
+function PosSync({ location }: { location: Location }) {
+  const router = useRouter();
+  const [restId, setRestId] = useState(location.posRestId ?? "");
+  const [note, setNote] = useState<string | null>(null);
+  async function patch(data: Record<string, unknown>) {
+    const res = await fetch(`/api/locations/${location.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+    setNote(res.ok ? "Saved." : "Couldn't save.");
+    router.refresh();
+  }
+  const url = location.posToken && location.posProvider && typeof window !== "undefined" ? `${window.location.origin}/api/v1/pos/${location.posProvider}/${location.posToken}` : null;
+  return (
+    <div className="space-y-2 border-t border-gray-200 pt-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="font-medium">POS sync</span>
+        <select value={location.posProvider ?? ""} onChange={(e) => patch({ posProvider: e.target.value || null })} className="rounded-input border border-control px-2 py-1">
+          <option value="">Off (use the Counter screen)</option>
+          <option value="petpooja">Petpooja</option>
+          <option value="generic">Other POS (our JSON format)</option>
+        </select>
+        {location.posProvider === "petpooja" && (
+          <label className="flex items-center gap-2">Petpooja restaurant ID
+            <input value={restId} onChange={(e) => setRestId(e.target.value)} onBlur={() => restId !== (location.posRestId ?? "") && patch({ posRestId: restId.trim() || null })} className="w-32 rounded-input border border-control px-2 py-1" />
+          </label>
+        )}
+        {note && <span className="text-gray-500">{note}</span>}
+      </div>
+      {url && (
+        <div className="space-y-1">
+          <p className="text-gray-600">{location.posProvider === "petpooja" ? "Send this URL to Petpooja support and ask them to push every bill (order created/updated) to it:" : "Your POS should POST each bill as JSON to:"}</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded bg-white px-2 py-1 text-xs">{url}</code>
+            <button type="button" onClick={() => navigator.clipboard?.writeText(url)} className="rounded-full border border-control px-3 py-1 hover:bg-gray-50">Copy</button>
+            <button type="button" onClick={() => window.confirm("Make a new URL? The old one stops working right away.") && patch({ newPosToken: true })} className="rounded-full border border-control px-3 py-1 hover:bg-gray-50">New URL</button>
+          </div>
+          <p className="text-xs text-gray-500">Keep it private: anyone with it can add bills to this outlet. Bills without a customer phone are skipped.</p>
+        </div>
+      )}
+    </div>
   );
 }
 
