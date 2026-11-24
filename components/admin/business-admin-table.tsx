@@ -18,6 +18,10 @@ export type AdminBusinessRow = {
   establishedVisitCountOverride: number | null;
   owner: { name: string; email: string };
   _count: { customers: number; callLogs: number; locations: number };
+  smsMonthlyLimit?: number | null;
+  whatsappMonthlyLimit?: number | null;
+  messageLimitsByAdmin?: boolean;
+  messagesUsed?: { whatsapp: number; sms: number };
 };
 
 /** showPlan: the Starter/Growth/Pro plan column. Loopdesk clients are on a bundle, so it is off. */
@@ -54,6 +58,7 @@ export function BusinessAdminTable({ businesses, showPlan = true }: { businesses
             <th className="px-4 py-2 font-medium">Owner</th>
             <th className="px-4 py-2 font-medium">WhatsApp</th>
             <th className="px-4 py-2 font-medium">Customers</th>
+            <th className="px-4 py-2 font-medium">Messages this month</th>
             <th className="px-4 py-2 font-medium">{showPlan ? "Plan" : "Add-ons"}</th>
             <th className="px-4 py-2 font-medium">Status</th>
             <th className="px-4 py-2 font-medium"></th>
@@ -90,6 +95,7 @@ export function BusinessAdminTable({ businesses, showPlan = true }: { businesses
                   )}
                 </td>
                 <td className="px-4 py-3">{b._count.customers}</td>
+                <td className="px-4 py-3"><MessageLimits business={b} saving={savingId === b.id} onSave={(body) => patch(b.id, body)} /></td>
                 <td className="px-4 py-3">
                   {showPlan && <>
                   <select
@@ -145,7 +151,7 @@ export function BusinessAdminTable({ businesses, showPlan = true }: { businesses
               </tr>
               {expanded === b.id && (
                 <tr>
-                  <td colSpan={7} className="bg-gray-50 px-4 py-4">
+                  <td colSpan={8} className="bg-gray-50 px-4 py-4">
                     <ThresholdForm business={b} onSave={(body) => patch(b.id, body)} saving={savingId === b.id} />
                   </td>
                 </tr>
@@ -222,6 +228,33 @@ function Field({
         placeholder="default"
         className="w-32 rounded-input border border-control px-2 py-1 text-sm"
       />
+    </div>
+  );
+}
+
+/** WhatsApp and SMS messages per month, typed in by a super admin. Blank = no limit. */
+function MessageLimits({ business: b, saving, onSave }: { business: AdminBusinessRow; saving: boolean; onSave: (body: Record<string, unknown>) => void }) {
+  const [wa, setWa] = useState(b.whatsappMonthlyLimit?.toString() ?? "");
+  const [sms, setSms] = useState(b.smsMonthlyLimit?.toString() ?? "");
+  const num = (v: string) => (v.trim() === "" ? null : Math.max(0, Math.round(Number(v))));
+  const changed = num(wa) !== (b.whatsappMonthlyLimit ?? null) || num(sms) !== (b.smsMonthlyLimit ?? null);
+  const used = b.messagesUsed ?? { whatsapp: 0, sms: 0 };
+  return (
+    <div className="space-y-1 text-xs">
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-gray-600">WhatsApp</span>
+        <span className="w-10 text-right text-gray-500">{used.whatsapp} /</span>
+        <input type="number" min={0} value={wa} onChange={(e) => setWa(e.target.value)} placeholder="no limit" className="w-20 rounded-input border border-control px-1 py-0.5" aria-label="WhatsApp messages per month" />
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-gray-600">SMS</span>
+        <span className="w-10 text-right text-gray-500">{used.sms} /</span>
+        <input type="number" min={0} value={sms} onChange={(e) => setSms(e.target.value)} placeholder="no limit" className="w-20 rounded-input border border-control px-1 py-0.5" aria-label="SMS per month" />
+      </label>
+      <div className="flex items-center gap-2">
+        {changed && <button disabled={saving} onClick={() => onSave({ whatsappMonthlyLimit: num(wa), smsMonthlyLimit: num(sms), messageLimitsByAdmin: true })} className="rounded-full bg-brand-600 px-2 py-0.5 font-medium text-white disabled:opacity-50">Save</button>}
+        {b.messageLimitsByAdmin && <span className="text-gray-500" title="Plan changes won't overwrite these">set by hand</span>}
+      </div>
     </div>
   );
 }

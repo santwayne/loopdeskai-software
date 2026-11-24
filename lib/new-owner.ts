@@ -10,7 +10,11 @@ export type NewOwnerInput = {
   businessName: string;
   sector: string;
   /** Built-in plan picked at signup. A custom bundle given by an admin replaces it. */
-  bundlePlan: FrontDeskPlan;
+  bundlePlan: FrontDeskPlan | null;
+  /** Or a bundle from Products & Bundles the customer picked (e.g. Korvo + Loyvexa). */
+  customBundleId?: string | null;
+  /** The plan key the customer asked for ("GROW" or "bundle:<id>"): our team activates it. */
+  planRequest?: string | null;
   country?: "CA" | "IN";
   phone?: string;
 };
@@ -56,8 +60,12 @@ export async function createBundleOwner(input: NewOwnerInput) {
           locations: { create: { name: input.businessName } },
           country,
           defaultChannel: india ? "WHATSAPP" : "SMS",
-          frontDeskPlan: input.bundlePlan,
+          frontDeskPlan: input.customBundleId ? null : input.bundlePlan,
+          // A picked custom bundle is linked now (its tools stay off until our team activates it).
+          customBundleId: input.customBundleId ?? null,
           bundleStatus: "PENDING_PAYMENT",
+          planRequest: input.planRequest ?? null,
+          planRequestedAt: input.planRequest ? new Date() : null,
           growthSettings: {
             create: {
               ownerPhone,

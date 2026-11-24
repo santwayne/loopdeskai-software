@@ -23,7 +23,13 @@ export async function activateBundle(businessId: string, plan: FrontDeskPlan, op
   await prisma.business.update({
     where: { id: businessId },
     // A built-in plan replaces any custom bundle (Products & Bundles).
-    data: { frontDeskPlan: plan, customBundleId: null, bundleTools: "", bundleGrowth: false, bundleStatus: "ACTIVE", bundlePaidUntil: paidUntil, smsMonthlyLimit: smsLimitFor(plan) },
+    data: {
+      frontDeskPlan: plan, customBundleId: null, bundleTools: "", bundleGrowth: false, bundleStatus: "ACTIVE", bundlePaidUntil: paidUntil,
+      // A message allowance our team set by hand stays as it is.
+      ...(biz.messageLimitsByAdmin ? {} : { smsMonthlyLimit: smsLimitFor(plan) }),
+      // The customer's plan request is done once a plan is activated.
+      planRequest: null, planRequestedAt: null,
+    },
   });
   await getSettings(biz);
   if (BUNDLE_PLANS[plan].growthManager) {

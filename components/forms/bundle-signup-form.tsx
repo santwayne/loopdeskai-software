@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { BUNDLE_PLANS, BUNDLE_PLAN_IDS, formatPrice, currencyFor } from "@/lib/hub/plans";
-import type { FrontDeskPlan } from "@/lib/types";
+import { formatPrice, currencyFor } from "@/lib/hub/plans";
+import type { CustomerPlan } from "@/lib/hub/customer-plans";
 import { BUNDLE_NAME } from "@/lib/brand";
 
 const SECTOR_OPTIONS: [string, string][] = [
@@ -12,10 +12,15 @@ const SECTOR_OPTIONS: [string, string][] = [
   ["RESTAURANT", "Restaurant"], ["GYM", "Gym / studio"], ["RETAIL", "Retail"], ["MANUFACTURER", "Manufacturer / brand (dealers, mechanics)"], ["OTHER", "Something else"],
 ];
 
-/** One signup for the whole bundle: plan, business, owner — then one payment. */
-export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan: FrontDeskPlan; initialCountry: "CA" | "IN" }) {
+/**
+ * One signup for every plan: built-in plans and our bundles (Korvo, Loyvexa…).
+ * The pick is a request: our team activates it (no online payment unless switched on).
+ */
+export function BundleSignupForm({ plans, initialPlan, initialCountry, onlinePayments = false }: {
+  plans: CustomerPlan[]; initialPlan: string; initialCountry: "CA" | "IN"; onlinePayments?: boolean;
+}) {
   const router = useRouter();
-  const [plan, setPlan] = useState<FrontDeskPlan>(initialPlan);
+  const [plan, setPlan] = useState<string>(initialPlan);
   const [country, setCountry] = useState<"CA" | "IN">(initialCountry);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +36,7 @@ export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan:
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: f.get("name"), email: f.get("email"), password: f.get("password"), businessName: f.get("businessName"),
-        sector: f.get("sector"), phone: f.get("phone"), country, bundlePlan: plan,
+        sector: f.get("sector"), phone: f.get("phone"), country, plan,
       }),
     });
     const d = await res.json().catch(() => ({}));
@@ -43,6 +48,7 @@ export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan:
     window.location.assign(d.next ?? "/dashboard/billing"); // full load: no cached pages from a previous login (bug B0)
   }
 
+  const chosen = plans.find((p) => p.key === plan);
   const input = "w-full rounded-input border border-control px-3 py-2 text-sm";
   return (
     <form onSubmit={submit} className="w-full max-w-3xl space-y-6">
@@ -54,20 +60,7 @@ export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan:
           </button>
         ))}
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {BUNDLE_PLAN_IDS.map((id) => {
-          const p = BUNDLE_PLANS[id];
-          return (
-            <button type="button" key={id} onClick={() => setPlan(id)} aria-pressed={plan === id}
-              className={clsx("rounded-card border p-4 text-left transition", plan === id ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600" : "border-gray-200 bg-white hover:border-gray-300")}>
-              <p className="font-semibold">{p.name}</p>
-              <p className="text-xs text-gray-500">{p.tagline}</p>
-              <p className="mt-2 text-2xl font-bold">{formatPrice(p.price[currency], currency)}<span className="text-sm font-normal text-gray-500">/month</span></p>
-              <ul className="mt-2 space-y-1 text-xs text-gray-600">{p.features.map((x) => <li key={x}>· {x}</li>)}</ul>
-            </button>
-          );
-        })}
-      </div>
+      <PlanPicker plans={plans} value={plan} onChange={setPlan} currency={currency} />
 
       <div className="grid gap-4 rounded-card border border-gray-200 bg-white p-5 md:grid-cols-2">
         <label className="text-sm"><span className="mb-1 block font-medium text-gray-700">Your name</span><input name="name" required className={input} /></label>
@@ -87,10 +80,47 @@ export function BundleSignupForm({ initialPlan, initialCountry }: { initialPlan:
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-wrap items-center gap-4">
         <button type="submit" disabled={loading} className="rounded-full bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-800 disabled:opacity-60">
-          {loading ? "Creating your account…" : `Continue to payment · ${formatPrice(BUNDLE_PLANS[plan].price[currency], currency)}/month`}
+          {loading ? "Creating your account…" : onlinePayments ? `Continue to payment · ${priceText(chosen, currency)}` : `Create my account · ${chosen?.name ?? "plan"}`}
         </button>
-        <p className="text-xs text-gray-500">One account, one bill. Your calls, jobs and Google profile are set up for you in {BUNDLE_NAME} after payment.</p>
+        <p className="text-xs text-gray-500">
+          {onlinePayments
+            ? `One account, one bill. Everything in ${BUNDLE_NAME} is set up for you after payment.`
+            : `One account, one bill. Our team activates your plan and sets up every tool for you in ${BUNDLE_NAME}.`}
+        </p>
       </div>
     </form>
+  );
+}
+
+export function priceText(p: CustomerPlan | undefined, currency: "CAD" | "INR") {
+  const amount = p?.price[currency];
+  return amount == null ? "Price on request" : `${formatPrice(amount, currency)}/${p!.per}`;
+}
+
+/** Built-in plans, then our bundles (Korvo + Loyvexa and others), as cards to pick from. */
+export function PlanPicker({ plans, value, onChange, currency }: { plans: CustomerPlan[]; value: string; onChange: (key: string) => void; currency: "CAD" | "INR" }) {
+  const groups = [
+    { title: "Plans", list: plans.filter((p) => !p.custom) },
+    { title: "Bundles", list: plans.filter((p) => p.custom) },
+  ].filter((g) => g.list.length);
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={g.title} id={g.title === "Bundles" ? "bundles" : undefined}>
+          {groups.length > 1 && <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{g.title}</p>}
+          <div className="grid gap-3 md:grid-cols-3">
+            {g.list.map((p) => (
+              <button type="button" key={p.key} onClick={() => onChange(p.key)} aria-pressed={value === p.key}
+                className={clsx("rounded-card border p-4 text-left transition", value === p.key ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600" : "border-gray-200 bg-white hover:border-gray-300")}>
+                <p className="font-semibold">{p.name}</p>
+                <p className="text-xs text-gray-500">{p.tagline}</p>
+                <p className="mt-2 text-xl font-bold">{priceText(p, currency)}</p>
+                <ul className="mt-2 space-y-1 text-xs text-gray-600">{p.features.map((x) => <li key={x}>· {x}</li>)}</ul>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

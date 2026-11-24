@@ -38,3 +38,9 @@ Phir Regulars mein:
 - `lib/hub/catalog-rules.ts` ke `BUILT_IN_PRODUCTS` mein us product ko `connect: "AUTO", hubTool: "<TOOL>"` kar do
 
 Har software ke liye ye 2-3 din ka kaam hai.
+
+## Customer plan khud chunta hai, activate hum karte hain (Nov 2026)
+- Signup (`/signup`) aur Billing page pe built-in plans ke saath woh saare bundles dikhte hain jin pe **"Show to customers"** tick hai (jaise Korvo + Loyvexa). Bundle banate/edit karte waqt yeh checkbox hai.
+- Online payment band hai (`NEXT_PUBLIC_ONLINE_PAYMENTS` false). Customer plan chunta hai → request save hoti hai → **Admin → Bundles** mein woh client sabse upar "Asked for …" ke saath dikhta hai, plan pehle se select hota hai → days + paid amount daalo → **Activate**.
+- Website ka "Start free trial" ab seedha app ka `/signup` kholta hai (ek hi signup).
+- **Admin → Clients** mein har client ke liye WhatsApp aur SMS messages per month haath se daal sakte ho. Khaali = no limit. Haath se daali limit plan change pe nahi badalti.

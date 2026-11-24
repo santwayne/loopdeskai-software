@@ -17,6 +17,10 @@ const updateSchema = z.object({
   // WayneRing AI Front Desk plan + SMS allowance (C$0.05 per SMS over the limit).
   frontDeskPlan: z.enum(FRONT_DESK_PLANS as [string, ...string[]]).nullable().optional(),
   smsMonthlyLimit: z.number().int().min(0).nullable().optional(),
+  // Messages per month set by hand (Admin → Clients). Setting either keeps them through plan changes;
+  // messageLimitsByAdmin: false hands them back to the plan.
+  whatsappMonthlyLimit: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  messageLimitsByAdmin: z.boolean().optional(),
   smsOverageRateCad: z.number().min(0).max(1).optional(),
   // Instagram DMs → booking add-on (sold on top of the plan).
   instagramAddon: z.boolean().optional(),
@@ -39,8 +43,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const data = { ...parsed.data };
+  const handSet = data.whatsappMonthlyLimit !== undefined || (data.smsMonthlyLimit !== undefined && !data.frontDeskPlan);
+  if (handSet && data.messageLimitsByAdmin === undefined) data.messageLimitsByAdmin = true;
   // Picking a Front Desk plan sets its SMS allowance unless one was given explicitly.
-  if (data.frontDeskPlan && data.smsMonthlyLimit === undefined) {
+  if (data.frontDeskPlan && data.smsMonthlyLimit === undefined && !business.messageLimitsByAdmin) {
     data.smsMonthlyLimit = FRONT_DESK_SMS_LIMIT[data.frontDeskPlan as FrontDeskPlan];
   }
   const updated = await prisma.business.update({

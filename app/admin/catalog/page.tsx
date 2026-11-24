@@ -32,7 +32,7 @@ export default async function AdminCatalogPage() {
       </div>
       <CatalogManager
         products={products.map((p) => ({ id: p.id, key: p.key, name: p.name, description: p.description, url: p.url, connect: p.connect, hubTool: p.hubTool, priceInr: p.priceInr, priceCad: p.priceCad, builtIn: p.builtIn, active: p.active, sortOrder: p.sortOrder, bundleCount: p._count.bundles }))}
-        bundles={bundles.map((b) => ({ id: b.id, name: b.name, description: b.description, priceInr: b.priceInr, priceCad: b.priceCad, interval: b.interval, growthManager: b.growthManager, smsMonthlyLimit: b.smsMonthlyLimit, active: b.active, productIds: b.items.map((i) => i.productId), clients: b.businesses }))}
+        bundles={bundles.map((b) => ({ id: b.id, name: b.name, description: b.description, priceInr: b.priceInr, priceCad: b.priceCad, interval: b.interval, growthManager: b.growthManager, smsMonthlyLimit: b.smsMonthlyLimit, active: b.active, showToCustomers: b.showToCustomers, productIds: b.items.map((i) => i.productId), clients: b.businesses }))}
         builtInPlans={builtInPlans}
         businesses={businesses.map((b) => ({ id: b.id, name: b.name, country: b.country, email: b.owner.email, bundleStatus: b.bundleStatus, frontDeskPlan: b.frontDeskPlan, customBundleId: b.customBundleId, paidUntil: b.bundlePaidUntil?.toISOString() ?? null }))}
       />

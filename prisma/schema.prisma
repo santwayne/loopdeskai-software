@@ -142,6 +142,20 @@ model Business {
   customBundle   Bundle?   @relation(fields: [customBundleId], references: [id], onDelete: SetNull)
   /// Comma list of the connected tools in the custom bundle (WAYNERING,GMB…).
   bundleTools    String    @default("")
+
+  // ── Plans activated by our team (Nov 2026): no online payment ───────────
+  /// The plan the customer picked (at signup or on Billing) and our team has
+  /// not activated yet: a built-in plan id (ANSWER…) or "bundle:<Bundle id>".
+  /// Cleared when a super admin activates a plan (Admin → Bundles).
+  planRequest     String?
+  planRequestedAt DateTime?
+
+  // ── Message allowance set by hand (Admin → Clients, Nov 2026) ───────────
+  /// WhatsApp messages to customers per calendar month (null = no limit).
+  whatsappMonthlyLimit Int?
+  /// A super admin set the SMS / WhatsApp numbers by hand: activating or
+  /// editing a plan no longer overwrites them.
+  messageLimitsByAdmin Boolean @default(false)
   /// The custom bundle includes the Growth Manager.
   bundleGrowth   Boolean   @default(false)
 
@@ -766,6 +780,9 @@ model Bundle {
   /// Included SMS per month (null = no limit set).
   smsMonthlyLimit Int?
   active      Boolean @default(true)
+  /// Shown to customers on the signup and Billing pages so they can pick it
+  /// (our team still activates it). Off = given by our team only.
+  showToCustomers Boolean @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

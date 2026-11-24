@@ -3,14 +3,16 @@ import { BundleAdminRow } from "@/components/admin/bundle-admin-row";
 import { BUNDLE_PLANS, TOOL_META, currencyFor, isBundlePlan } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { ManualSetupControl } from "@/components/admin/manual-setup-control";
+import { parsePlanKey } from "@/lib/hub/customer-plans";
 
 export const dynamic = "force-dynamic";
 
 /** Bundle A accounts: plan, paid period and the set-up state in every tool. */
 export default async function AdminBundlesPage() {
   const rows = await prisma.business.findMany({
-    where: { bundleStatus: { not: "NONE" } },
-    orderBy: { createdAt: "desc" },
+    where: { OR: [{ bundleStatus: { not: "NONE" } }, { planRequest: { not: null } }] },
+    // Customers waiting for a plan to be activated come first.
+    orderBy: [{ planRequestedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     include: {
       owner: { select: { name: true, email: true } }, toolAccounts: true,
       // Custom bundles (Products & Bundles): their manual software and its set-up state.
@@ -19,6 +21,16 @@ export default async function AdminBundlesPage() {
     },
   });
   const customBundles = await prisma.bundle.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, interval: true } });
+  const allBundles = await prisma.bundle.findMany({ select: { id: true, name: true } });
+  // The plan a customer asked for, as the row's select value and as words.
+  const requestOf = (key: string | null) => {
+    const p = parsePlanKey(key);
+    if (!p) return null;
+    return "bundleId" in p
+      ? { value: `custom:${p.bundleId}`, name: allBundles.find((b) => b.id === p.bundleId)?.name ?? "a removed bundle" }
+      : { value: p.builtIn, name: BUNDLE_PLANS[p.builtIn].name };
+  };
+  const waiting = rows.filter((b) => b.planRequest).length;
   // Has each tool that reports events (WayneRing, CRM) ever used its key? (bug B3)
   const keyIds = rows.flatMap((b) => b.toolAccounts.map((a) => a.apiKeyId).filter(Boolean) as string[]);
   const keys = keyIds.length ? await prisma.apiKey.findMany({ where: { id: { in: keyIds } }, select: { id: true, lastUsedAt: true, revokedAt: true } }) : [];
@@ -27,8 +39,9 @@ export default async function AdminBundlesPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Bundles</h1>
-        <p className="text-sm text-gray-500">Activate a plan or custom bundle paid offline, re-run the automatic set-up, issue fresh keys, or mark manual software ready. Failed set-ups retry daily on their own. Build bundles in Products &amp; Bundles.</p>
+        <p className="text-sm text-gray-500">Customers pick a plan when they sign up or on Billing; there is no online payment. Activate the plan here (paid offline, or a free pilot), re-run the automatic set-up, issue fresh keys, or mark manual software ready. Failed set-ups retry daily on their own. Build bundles in Products &amp; Bundles.</p>
       </div>
+      {waiting > 0 && <div className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{waiting} customer{waiting > 1 ? "s are" : " is"} waiting for a plan to be activated (shown first, with the plan they asked for already picked).</div>}
       <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
@@ -39,7 +52,8 @@ export default async function AdminBundlesPage() {
             {rows.map((b) => (
               <tr key={b.id} className="border-t border-gray-100 align-top">
                 <td className="px-4 py-3"><p className="font-medium">{b.name}</p><p className="text-xs text-gray-500">{b.owner.name} · {b.owner.email} · {b.country}</p></td>
-                <td className="px-4 py-3">{b.customBundle ? <>{b.customBundle.name}<span className="ml-1 rounded-full bg-brand-100 px-2 text-[11px] text-brand-900">custom</span></> : isBundlePlan(b.frontDeskPlan) ? BUNDLE_PLANS[b.frontDeskPlan].name : "—"}<p className="text-xs text-gray-500">{b.bundleStatus.replace("_", " ").toLowerCase()}</p></td>
+                <td className="px-4 py-3">{b.customBundle ? <>{b.customBundle.name}<span className="ml-1 rounded-full bg-brand-100 px-2 text-[11px] text-brand-900">custom</span></> : isBundlePlan(b.frontDeskPlan) ? BUNDLE_PLANS[b.frontDeskPlan].name : "—"}<p className="text-xs text-gray-500">{b.bundleStatus === "PENDING_PAYMENT" ? "waiting for activation" : b.bundleStatus.replace("_", " ").toLowerCase()}</p>
+                  {requestOf(b.planRequest) && <p className="mt-1 inline-block rounded-full bg-amber-100 px-2 text-[11px] text-amber-900">Asked for {requestOf(b.planRequest)!.name}{b.planRequestedAt ? ` · ${b.planRequestedAt.toLocaleDateString("en-CA")}` : ""}</p>}</td>
                 <td className="px-4 py-3">{b.bundlePaidUntil ? b.bundlePaidUntil.toLocaleDateString("en-CA") : "—"}</td>
                 <td className="px-4 py-3">
                   <ul className="space-y-1">
@@ -71,7 +85,7 @@ export default async function AdminBundlesPage() {
                     })}
                   </ul>
                 </td>
-                <td className="px-4 py-3"><BundleAdminRow id={b.id} plan={b.customBundleId ? `custom:${b.customBundleId}` : isBundlePlan(b.frontDeskPlan) ? b.frontDeskPlan : "ANSWER"} currency={currencyFor(b.country)} customBundles={customBundles} /></td>
+                <td className="px-4 py-3"><BundleAdminRow id={b.id} plan={requestOf(b.planRequest)?.value ?? (b.customBundleId ? `custom:${b.customBundleId}` : isBundlePlan(b.frontDeskPlan) ? b.frontDeskPlan : "ANSWER")} currency={currencyFor(b.country)} customBundles={customBundles} /></td>
               </tr>
             ))}
           </tbody>

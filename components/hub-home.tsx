@@ -9,10 +9,11 @@ import { businessTools, customBundleView } from "@/lib/hub/catalog";
 import { productFitsSector, toolsForSector } from "@/lib/hub/catalog-rules";
 import { TOOL_NAMES } from "@/lib/brand";
 import { ownerChannel } from "@/lib/growth/brief";
+import { ONLINE_PAYMENTS } from "@/lib/hub/customer-plans";
 
 const HUB_MSG: Record<string, string> = {
   "not-in-plan": "That tool isn't part of your plan. Upgrade on the Billing page to add it.",
-  "plan-inactive": "Your plan isn't active, so your tools are paused. Pay on the Billing page to switch them back on.",
+  "plan-inactive": ONLINE_PAYMENTS ? "Your plan isn't active, so your tools are paused. Pay on the Billing page to switch them back on." : "Your plan isn't active yet, so your tools are paused. Our team activates it — see the Billing page.",
   "setting-up": "We're still setting that tool up for you. It usually takes a minute — refresh shortly.",
   unknown: "That link didn't work.",
 };
@@ -67,7 +68,7 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
   const gmb = accountData<{ connected?: boolean }>(acc("GMB"));
 
   const steps = [
-    { done: live, text: "Plan paid", href: "/dashboard/billing" },
+    { done: live, text: ONLINE_PAYMENTS ? "Plan paid" : "Plan activated by our team", href: "/dashboard/billing" },
     ...(plan.tools.includes("WAYNERING") ? [
       { done: acc("WAYNERING")?.status === "ACTIVE", text: "AI receptionist account created" },
       { done: !!wr.phoneNumber, text: wr.phoneNumber ? `Calls answered on ${wr.phoneNumber}` : "Phone number connected (our team sets this up with you)" },
@@ -89,8 +90,10 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
       {hubMessage && HUB_MSG[hubMessage] && <div className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{HUB_MSG[hubMessage]}</div>}
       {business.bundleStatus === "PENDING_PAYMENT" && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-brand-200 bg-brand-50 px-5 py-4">
-          <div><p className="font-medium">One step left: pay for {plan.name}</p><p className="text-sm text-gray-600">Everything is set up automatically the moment it&apos;s paid.</p></div>
-          <Link href="/dashboard/billing" className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800">Go to payment</Link>
+          {ONLINE_PAYMENTS
+            ? <div><p className="font-medium">One step left: pay for {plan.name}</p><p className="text-sm text-gray-600">Everything is set up automatically the moment it&apos;s paid.</p></div>
+            : <div><p className="font-medium">{plan.name} is waiting for activation</p><p className="text-sm text-gray-600">Our team will call you, confirm the details and switch everything on.</p></div>}
+          <Link href="/dashboard/billing" className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800">{ONLINE_PAYMENTS ? "Go to payment" : "See my plan"}</Link>
         </div>
       )}
       {business.bundleStatus === "LAPSED" && (

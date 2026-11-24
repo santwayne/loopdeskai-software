@@ -1,10 +1,6 @@
-import { AuthBrand } from "@/components/auth-brand";
+import { PublicShell } from "@/components/site-chrome";
 
+// Same header and footer as the website (components/site-chrome.tsx).
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="relative bg-gray-50">
-      <AuthBrand />
-      {children}
-    </div>
-  );
+  return <PublicShell>{children}</PublicShell>;
 }
