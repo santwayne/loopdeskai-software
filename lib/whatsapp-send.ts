@@ -149,6 +149,10 @@ export async function sendCustomerWhatsApp(p: {
   if (customer.optedOut) return { ok: false, status: "OPTED_OUT" };
   // Someone who only wrote on Instagram has no WhatsApp number.
   if (isInstagramOnly(customer)) return { ok: false, status: "NO_NUMBER", error: "NO_PHONE: This customer has only messaged on Instagram — there is no WhatsApp number." };
+  // The monthly WhatsApp allowance our team set for this business (Admin → Clients).
+  if (await whatsappLimitReached(business, p.now)) {
+    return { ok: false, status: "FAILED", error: `MONTHLY_LIMIT: This business has used its ${business.whatsappMonthlyLimit} WhatsApp messages for this month. Ask your account manager to raise it.` };
+  }
 
   const open = windowOpen(await lastInboundWhatsApp(customer.id), p.now);
   let r: GraphResult, shown: string, tpl: string | null = null, sentLang: WaLang | null = null;
@@ -229,6 +233,12 @@ export async function sendOwnerWhatsApp(
   }
   await logEvent({ businessId: business.id, source: "WHATSAPP", level: "ERROR", message: "Owner WhatsApp message failed", meta: { error: r?.error, code: r?.code } });
   return false;
+}
+
+/** The business has a WhatsApp allowance and has used it up this month. Owner messages count but are never blocked. */
+export async function whatsappLimitReached(business: Pick<Business, "id" | "whatsappMonthlyLimit">, now = new Date()) {
+  if (business.whatsappMonthlyLimit == null) return false;
+  return (await whatsappUsageThisMonth(business.id, now)) >= business.whatsappMonthlyLimit;
 }
 
 /** WhatsApp messages sent this calendar month (UTC). */

@@ -19,4 +19,6 @@ export const bundleFields = {
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
   growthManager: z.boolean().optional(),
   smsMonthlyLimit: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  /** Customers can pick it on signup / Billing (our team still activates it). */
+  showToCustomers: z.boolean().optional(),
 };

@@ -4,12 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { BundleCheckout } from "@/components/bundle-checkout";
 import { RENEWAL_REMINDER_WINDOW_DAYS } from "@/lib/billing";
 import { BUNDLE_PLANS, GRACE_DAYS, currencyFor, isBundlePlan } from "@/lib/hub/plans";
+import { ONLINE_PAYMENTS, bundleKey, customerPlans, planLabel } from "@/lib/hub/customer-plans";
+import { PlanRequest } from "@/components/plan-request";
+import type { Business } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillingPage() {
   const business = await getOwnerBusinessOrRedirect();
   if (!business) return null;
+  // Plans are activated by our team; no online payment (NEXT_PUBLIC_ONLINE_PAYMENTS=true brings Razorpay back).
+  if (!ONLINE_PAYMENTS) return <ManualBilling business={business} />;
 
   // ── Custom bundle (Admin → Products & Bundles): billed by our team ──────
   if (business.customBundleId && business.bundleStatus !== "NONE") {
@@ -111,6 +116,63 @@ export default async function BillingPage() {
       <div className="rounded-card border border-gray-200 bg-white p-5 text-sm text-gray-600">
         No plan is set up for this account yet. Message your account manager to choose a bundle.
       </div>
+    </div>
+  );
+}
+
+/** Billing without online payment: the plan, its dates, and a plan request our team activates. */
+async function ManualBilling({ business }: { business: Business }) {
+  const [bundles, payments, custom] = await Promise.all([
+    prisma.bundle.findMany({
+      where: { active: true, showToCustomers: true }, orderBy: { name: "asc" },
+      include: { items: { include: { product: { select: { name: true, description: true, connect: true, active: true, sortOrder: true } } } } },
+    }),
+    prisma.payment.findMany({ where: { businessId: business.id, kind: "BUNDLE", status: "PAID" }, orderBy: { createdAt: "desc" }, take: 12 }),
+    business.customBundleId ? prisma.bundle.findUnique({ where: { id: business.customBundleId }, select: { name: true } }) : null,
+  ]);
+  const plans = customerPlans(bundles);
+  const currentKey = business.customBundleId ? bundleKey(business.customBundleId) : business.frontDeskPlan ?? "GROW";
+  const currentName = custom?.name ?? (isBundlePlan(business.frontDeskPlan) ? BUNDLE_PLANS[business.frontDeskPlan].name : null);
+  const until = business.bundlePaidUntil;
+  const days = until ? Math.ceil((until.getTime() - Date.now()) / 86400000) : null;
+  const requested = planLabel(business.planRequest, plans);
+  const active = business.bundleStatus === "ACTIVE";
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
+        <p className="text-sm text-gray-500">Your plan is activated by our team. No card or online payment is needed here.</p>
+      </div>
+      <div className="rounded-card border border-gray-200 bg-white p-5 text-sm">
+        <p className="font-medium">{currentName ?? "No plan yet"}</p>
+        {active && until && <p className="text-gray-600">Active until {formatDate(until, business.country)}.</p>}
+        {active && days !== null && days <= RENEWAL_REMINDER_WINDOW_DAYS && (
+          <p className="mt-1 text-amber-700">{days <= 0 ? `It ended ${-days} day(s) ago — tools pause ${GRACE_DAYS} days after the end date.` : `It ends in ${days} day(s). Our team will contact you to renew.`}</p>
+        )}
+        {business.bundleStatus === "PENDING_PAYMENT" && <p className="text-amber-700">Waiting for activation. Our team will call you, confirm the details and switch everything on.</p>}
+        {business.bundleStatus === "LAPSED" && <p className="text-red-700">Your plan has ended and your tools are paused. Nothing has been deleted. Ask below and our team will reactivate it.</p>}
+        {requested && business.planRequestedAt && (
+          <p className="mt-2 text-gray-600">You asked for <span className="font-medium">{requested}</span> on {formatDate(business.planRequestedAt, business.country)}. Our team will activate it.</p>
+        )}
+      </div>
+      <div>
+        <h2 className="mb-2 text-lg font-semibold">{active ? "Change plan" : "Choose your plan"}</h2>
+        <PlanRequest plans={plans} current={business.planRequest ?? currentKey} currency={currencyFor(business.country)} label={active ? "Ask to switch to this plan" : "Ask our team to activate this plan"} />
+      </div>
+      {payments.length > 0 && (
+        <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-4 py-2 font-medium">Date</th><th className="px-4 py-2 font-medium">Plan</th><th className="px-4 py-2 font-medium">Amount</th></tr></thead>
+            <tbody>{payments.map((p) => (
+              <tr key={p.id} className="border-t border-gray-100">
+                <td className="px-4 py-2">{formatDate(p.paidAt ?? p.createdAt, business.country)}</td>
+                <td className="px-4 py-2">{isBundlePlan(p.plan) ? BUNDLE_PLANS[p.plan].name : p.plan.replace(/^CUSTOM:/, "")}</td>
+                <td className="px-4 py-2">{(p.amountInPaise / 100).toLocaleString("en-CA", { style: "currency", currency: p.currency })}</td>
+              </tr>))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

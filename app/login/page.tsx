@@ -4,7 +4,7 @@ import { BUNDLE_NAME } from "@/lib/brand";
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6">
+    <main className="flex flex-col items-center justify-center px-6 py-20">
       <h1 className="text-2xl font-semibold mb-6">Log in to {BUNDLE_NAME}</h1>
       <AuthForm mode="login" />
       <p className="mt-3 text-sm">

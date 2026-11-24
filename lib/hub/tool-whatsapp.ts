@@ -5,7 +5,7 @@ import { logEvent } from "@/lib/logger";
 import { bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
-import { graphSend } from "@/lib/whatsapp-send";
+import { graphSend, whatsappLimitReached } from "@/lib/whatsapp-send";
 import { whatsappSenderFor, type WaSender } from "@/lib/whatsapp-sender";
 
 /**
@@ -122,12 +122,17 @@ export async function sendForTool(tool: Tool, businessId: string, body: unknown)
     const out = await prisma.customer.findFirst({ where: { businessId: business.id, phone: { in: [msg.to, `+${msg.to}`] }, optedOut: true }, select: { id: true } });
     if (out) throw new ToolWaError(409, "OPTED_OUT", "This person sent STOP to the business");
   }
+  // The business's monthly WhatsApp allowance covers the tools' messages too (OTPs always go).
+  if (!isOtpTemplate(msg.templateName) && (await whatsappLimitReached(business))) {
+    throw new ToolWaError(429, "MONTHLY_LIMIT", "This business has used its WhatsApp messages for this month");
+  }
   const r = await graphSend(sender, msg.to, msg.message);
   if (!r.ok || !r.id) {
     await logEvent({ businessId: business.id, source: "WHATSAPP", level: "WARN", message: `${tool} WhatsApp not sent`, meta: { error: r.error, code: r.code } });
     throw new ToolWaError(502, "WHATSAPP_FAILED", r.error ?? "WhatsApp send failed");
   }
   const now = new Date();
+  await prisma.usageEvent.create({ data: { businessId: business.id, type: "WHATSAPP_SENT" } });
   await prisma.hubWaContact.upsert({
     where: { businessId_tool_phone: { businessId: business.id, tool, phone: msg.to } },
     create: { businessId: business.id, tool, phone: msg.to, locationId: sender.shared ? null : location.id, lastOutboundAt: now },

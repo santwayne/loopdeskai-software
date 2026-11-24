@@ -12,7 +12,7 @@ export type CatalogProductRow = {
 };
 export type CatalogBundleRow = {
   id: string; name: string; description: string | null; priceInr: number | null; priceCad: number | null;
-  interval: string; growthManager: boolean; smsMonthlyLimit: number | null; active: boolean;
+  interval: string; growthManager: boolean; smsMonthlyLimit: number | null; active: boolean; showToCustomers: boolean;
   productIds: string[]; clients: { id: string; name: string }[];
 };
 type BuiltInPlan = { id: string; name: string; tools: Tool[]; priceInr: number; priceCad: number };
@@ -199,6 +199,7 @@ function BundlesSection({ products, bundles, builtInPlans }: { products: Catalog
                 <li key={p!.id} className={`rounded-full px-2 py-0.5 text-xs ${CONNECT_LABEL[p!.connect]?.tone ?? "bg-gray-100"}`}>{p!.name}</li>
               ))}
               {b.growthManager && <li className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-800">Growth Manager</li>}
+              <li className={`rounded-full px-2 py-0.5 text-xs ${b.showToCustomers ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>{b.showToCustomers ? "Customers can pick it" : "Hidden from customers"}</li>
             </ul>
             <p className="text-xs text-gray-500">{b.clients.length ? `Clients: ${b.clients.map((c) => c.name).join(", ")}` : "No clients yet"}</p>
             <div className="mt-auto flex gap-3 pt-1">
@@ -226,7 +227,7 @@ function BundlesSection({ products, bundles, builtInPlans }: { products: Catalog
 
 type BundleBody = {
   name: string; description: string | null; productIds: string[]; priceInr: number | null; priceCad: number | null;
-  interval: string; growthManager: boolean; smsMonthlyLimit: number | null;
+  interval: string; growthManager: boolean; smsMonthlyLimit: number | null; showToCustomers: boolean;
 };
 
 function BundleForm({ bundle, products, busy, onSave, onCancel }: {
@@ -252,6 +253,7 @@ function BundleForm({ bundle, products, busy, onSave, onCancel }: {
       interval: String(f.get("interval") ?? "MONTHLY"),
       growthManager: f.get("growthManager") === "on",
       smsMonthlyLimit: num(f.get("smsMonthlyLimit")),
+      showToCustomers: f.get("showToCustomers") === "on",
     });
   }
 
@@ -294,6 +296,10 @@ function BundleForm({ bundle, products, busy, onSave, onCancel }: {
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="growthManager" defaultChecked={bundle?.growthManager ?? false} />
         Include the Growth Manager (morning plan, win-backs, missed-call text-back)
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="showToCustomers" defaultChecked={bundle?.showToCustomers ?? true} />
+        Show to customers on the signup and Billing pages (they pick it, our team activates it)
       </label>
       <div className="flex gap-2">
         <button disabled={busy || picked.size === 0} className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Saving…" : bundle ? "Save bundle" : "Create bundle"}</button>

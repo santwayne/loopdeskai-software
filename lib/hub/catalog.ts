@@ -91,7 +91,9 @@ export async function activateCustomBundle(businessId: string, bundleId: string,
       frontDeskPlan: null,
       bundleStatus: "ACTIVE",
       bundlePaidUntil: paidUntil,
-      smsMonthlyLimit: bundle.smsMonthlyLimit,
+      ...(biz.messageLimitsByAdmin ? {} : { smsMonthlyLimit: bundle.smsMonthlyLimit }),
+      planRequest: null,
+      planRequestedAt: null,
     },
   });
   await getSettings(biz);
@@ -114,9 +116,14 @@ export async function syncBundle(bundleId: string) {
   const products = bundle.items.map((i) => i.product);
   const tools = encodeTools(toolsFromProducts(products));
   const manualIds = products.filter((p) => p.connect === "MANUAL").map((p) => p.id);
-  const clients = await prisma.business.findMany({ where: { customBundleId: bundleId }, select: { id: true, bundleStatus: true } });
+  const clients = await prisma.business.findMany({ where: { customBundleId: bundleId }, select: { id: true, bundleStatus: true, messageLimitsByAdmin: true } });
   for (const c of clients) {
-    await prisma.business.update({ where: { id: c.id }, data: { bundleTools: tools, bundleGrowth: bundle.growthManager, smsMonthlyLimit: bundle.smsMonthlyLimit } });
+    // Customers who picked this bundle but aren't activated yet: nothing to set up.
+    if (c.bundleStatus === "PENDING_PAYMENT") continue;
+    await prisma.business.update({
+      where: { id: c.id },
+      data: { bundleTools: tools, bundleGrowth: bundle.growthManager, ...(c.messageLimitsByAdmin ? {} : { smsMonthlyLimit: bundle.smsMonthlyLimit }) },
+    });
     if (c.bundleStatus === "ACTIVE") {
       await prisma.growthSettings.updateMany({ where: { businessId: c.id }, data: { enabled: bundle.growthManager } });
     }

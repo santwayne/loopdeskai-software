@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getOwnerBusiness } from "@/lib/session";
 import { isRazorpayConfigured } from "@/lib/billing";
 import { logEvent } from "@/lib/logger";
+import { ONLINE_PAYMENTS } from "@/lib/hub/customer-plans";
 import { cancelAutopay, startAutopay } from "@/lib/hub/autopay";
 import { BUNDLE_PLAN_IDS, currencyFor, isBundlePlan } from "@/lib/hub/plans";
 
@@ -11,6 +12,8 @@ const schema = z.object({ plan: z.enum(BUNDLE_PLAN_IDS as [string, ...string[]])
 export async function POST(req: NextRequest) {
   const business = await getOwnerBusiness();
   if (!business) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Plans are activated by our team (Admin → Bundles); online payment is off unless NEXT_PUBLIC_ONLINE_PAYMENTS=true.
+  if (!ONLINE_PAYMENTS) return NextResponse.json({ error: "Online payment is switched off. Our team activates your plan." }, { status: 403 });
   if (business.status === "SUSPENDED") return NextResponse.json({ error: "This account is suspended" }, { status: 403 });
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
