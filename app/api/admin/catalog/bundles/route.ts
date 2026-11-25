@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/admin";
 import { bundleFields } from "@/lib/hub/catalog-schemas";
-import { withHub } from "@/lib/hub/catalog";
+import { knownProducts } from "@/lib/hub/catalog";
 
 /** POST /api/admin/catalog/bundles — build a bundle from any products in the catalog. */
 export async function POST(req: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const parsed = z.object(bundleFields).safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const { productIds, ...data } = parsed.data;
-  const ids = await withHub(productIds);
+  const ids = await knownProducts(productIds);
   const bundle = await prisma.bundle.create({ data: { ...data, items: { create: ids.map((productId) => ({ productId })) } } });
   return NextResponse.json({ bundle });
 }

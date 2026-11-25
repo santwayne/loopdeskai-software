@@ -9,8 +9,9 @@ This repo is the **product platform** (backend + dashboard) — separate from
 [`arpanwayne/regulars`](https://github.com/arpanwayne/regulars), which is the marketing website.
 
 > **This repo is Loopdesk AI**: the bundle hub (bundles, product catalog, one bill,
-> single sign-on and automatic set-up in the other tools) plus the customer, inbox,
-> offers and Growth Manager features every bundle client uses. The Regulars loyalty
+> single sign-on and automatic set-up in the tools, Regulars included) plus the inbox
+> and Growth Manager. The customer, offers and restaurant pages that came from
+> Regulars show only for bundles that include Regulars (see docs/PRODUCTS-AND-BUNDLES.md). The Regulars loyalty
 > product on its own (Starter / Growth / Pro) is a separate repo with its own database
 > (Nov 2026). Loopdesk runs on app.loopdeskai.wayneesolutions.com.
 
@@ -366,10 +367,11 @@ with the same `CRON_SECRET` as in `.env`. Without the growth line, the morning b
 "Plan now" on `/dashboard/growth` does not count as the day's scheduled run, so the brief still goes at the brief hour.
 Each brief writes a line to Admin → Logs ("Morning brief sent" or "NOT sent").
 
-## One platform (Bundle A) — Regulars is the hub
+## One platform — Loopdesk AI is the hub
 
-Bundle A is sold as one product. Regulars handles signup, the bill, the
-login and the home screen; the other tools are set up automatically.
+Loopdesk AI handles signup, the bill, the login and the home screen; the
+tools are set up automatically. Regulars is one of the tools since Nov 2026
+(its own app and database, like Korvo and Loyvexa), not part of every bundle.
 
 | What | Where |
 | --- | --- |

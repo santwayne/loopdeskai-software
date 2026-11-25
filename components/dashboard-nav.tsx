@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BUNDLE_NAME } from "@/lib/brand";
 import { AppHeader, type HeaderLink, type SwitcherItem } from "@/components/app-header";
+import { isRegularsPage } from "@/lib/hub/catalog-rules";
 
 const LINKS = [
   { href: "/dashboard", label: "Overview" },
@@ -26,17 +27,20 @@ export function DashboardNav({
   businessName,
   isSuperAdmin,
   isManager = false,
+  regularsPages = true,
   bundle,
 }: {
   businessName: string;
   isSuperAdmin?: boolean;
   /** Managers see only the pages they work in (no billing, settings, team, Growth AI). */
   isManager?: boolean;
+  /** False when the client's bundle doesn't include Regulars: its pages are hidden. */
+  regularsPages?: boolean;
   /** Bundle A: one menu for every tool; tools in other apps open with single sign-on. */
   bundle?: { calls: boolean; jobs: boolean; switcher: SwitcherItem[] };
 }) {
   const pathname = usePathname();
-  const links = isManager ? LINKS.filter((l) => !l.ownerOnly) : LINKS;
+  const links = (isManager ? LINKS.filter((l) => !l.ownerOnly) : LINKS).filter((l) => regularsPages || !isRegularsPage(l.href));
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

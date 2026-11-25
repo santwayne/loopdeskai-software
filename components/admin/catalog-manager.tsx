@@ -171,7 +171,7 @@ function BundlesSection({ products, bundles, builtInPlans }: { products: Catalog
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="font-medium">2. Bundles</h2>
-          <p className="text-xs text-gray-500">Pick any software, set a price. Regulars is always included. Editing a bundle updates every client on it.</p>
+          <p className="text-xs text-gray-500">Pick any software, set a price. Loopdesk AI (login, inbox, billing) comes with every bundle; Regulars is optional like the other tools. Editing a bundle updates every client on it.</p>
         </div>
         {editing === null && <button onClick={() => setEditing("new")} className="rounded-full bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">+ New bundle</button>}
       </div>

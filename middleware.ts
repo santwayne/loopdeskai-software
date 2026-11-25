@@ -23,7 +23,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  // The dashboard layout needs the path to keep Regulars pages from clients
+  // whose bundle doesn't include Regulars (lib/hub/catalog-rules.ts).
+  const headers = new Headers(req.headers);
+  headers.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {
