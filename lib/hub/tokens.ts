@@ -7,7 +7,9 @@ import { TOOL_META, type Tool } from "@/lib/hub/plans";
  * (HUB_SECRET_<TOOL> here, HUB_SECRET there), so a leak in one tool can't
  * be used against another. Tokens are HS256 JWTs:
  *
- *   iss "regulars-hub"   aud <tool audience>   sub <Regulars business id>
+ *   iss "regulars-hub"   aud <tool audience>   sub <Loopdesk business id>
+ *
+ * (The issuer name is from when Regulars was the hub; every tool checks it, so it stays.)
  *   purpose "provision" | "sso" | "whatsapp-inbound"   jti (single use)   exp ≤ 2 minutes
  *
  * "provision" authenticates the hub's server-to-server set-up call.
@@ -15,7 +17,7 @@ import { TOOL_META, type Tool } from "@/lib/hub/plans";
  * its own session.
  */
 export const ISSUER = "regulars-hub";
-export const AUDIENCE: Record<Tool, string> = { WAYNERING: "wayneRing", FIELD_SERVICE: "fieldService", GMB: "gmb", VIDEO: "videoStudio", KORVO: "korvo", LOYVEXA: "loyvexa" };
+export const AUDIENCE: Record<Tool, string> = { REGULARS: "regulars", WAYNERING: "wayneRing", FIELD_SERVICE: "fieldService", GMB: "gmb", VIDEO: "videoStudio", KORVO: "korvo", LOYVEXA: "loyvexa" };
 
 export function toolSecret(tool: Tool): string | null {
   const v = process.env[TOOL_META[tool].secretEnv];

@@ -5,7 +5,7 @@ import { StatCard } from "@/components/stat-card";
 import { DAY, getSettings, money } from "@/lib/growth/settings";
 import { accountData } from "@/lib/hub/provision";
 import { BUNDLE_PLANS, TOOL_META, isBundlePlan, type Tool } from "@/lib/hub/plans";
-import { businessTools, customBundleView } from "@/lib/hub/catalog";
+import { businessTools, customBundleView, regularsPagesFor } from "@/lib/hub/catalog";
 import { productFitsSector, toolsForSector } from "@/lib/hub/catalog-rules";
 import { TOOL_NAMES } from "@/lib/brand";
 import { ownerChannel } from "@/lib/growth/brief";
@@ -15,6 +15,7 @@ const HUB_MSG: Record<string, string> = {
   "not-in-plan": "That tool isn't part of your plan. Upgrade on the Billing page to add it.",
   "plan-inactive": ONLINE_PAYMENTS ? "Your plan isn't active, so your tools are paused. Pay on the Billing page to switch them back on." : "Your plan isn't active yet, so your tools are paused. Our team activates it — see the Billing page.",
   "setting-up": "We're still setting that tool up for you. It usually takes a minute — refresh shortly.",
+  "no-regulars": "Customers, offers and loyalty are in Regulars, which isn't part of your plan. Ask us to add it.",
   unknown: "That link didn't work.",
 };
 
@@ -50,6 +51,7 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
   plan = { ...plan, tools: toolsForSector(plan.tools, business.sector) };
   manual = manual.filter((m) => productFitsSector(m.product.key, business.sector));
   const s = await getSettings(business);
+  const regularsPages = await regularsPagesFor(business);
   const since = new Date(Date.now() - 7 * DAY);
   const [accounts, waiting, won, events, locations] = await Promise.all([
     prisma.toolAccount.findMany({ where: { businessId: business.id } }),
@@ -73,6 +75,7 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
       { done: acc("WAYNERING")?.status === "ACTIVE", text: "AI receptionist account created" },
       { done: !!wr.phoneNumber, text: wr.phoneNumber ? `Calls answered on ${wr.phoneNumber}` : "Phone number connected (our team sets this up with you)" },
     ] : []),
+    ...(plan.tools.includes("REGULARS") ? [{ done: acc("REGULARS")?.status === "ACTIVE", text: "Regulars account created" }] : []),
     ...(plan.tools.includes("FIELD_SERVICE") ? [{ done: acc("FIELD_SERVICE")?.status === "ACTIVE", text: `${TOOL_NAMES.jobs} account created` }] : []),
     ...(plan.tools.includes("GMB") ? [{ done: !!gmb.connected, text: gmb.connected ? "Google listing connected" : `Connect your Google listing (open ${TOOL_NAMES.google} below)` }] : []),
     ...(plan.growthManager ? [{
@@ -134,14 +137,18 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
           <Tile name={TOOL_NAMES.growth} blurb="Today's plan: who to call back, remind and win back" status={{ label: s.enabled ? "On" : "Off", tone: s.enabled ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-600" }}
             links={[{ href: "/dashboard/growth", label: waiting ? `Review ${waiting} action${waiting === 1 ? "" : "s"}` : `Open ${TOOL_NAMES.growth}` }]} />
         )}
-        <Tile name="Customers & inbox" blurb="Everyone who called, texted or booked, on one timeline" status={{ label: "Ready", tone: "bg-green-50 text-green-800" }}
-          links={[{ href: "/dashboard/customers", label: "Customers" }, { href: "/dashboard/inbox", label: "Inbox" }]} />
+        {regularsPages
+          ? <Tile name="Customers & inbox" blurb="Everyone who called, texted or booked, on one timeline" status={{ label: "Ready", tone: "bg-green-50 text-green-800" }}
+              links={[{ href: "/dashboard/customers", label: "Customers" }, { href: "/dashboard/inbox", label: "Inbox" }]} />
+          : <Tile name="Inbox" blurb="WhatsApp and text messages on your number, in one place" status={{ label: "Ready", tone: "bg-green-50 text-green-800" }}
+              links={[{ href: "/dashboard/inbox", label: "Inbox" }]} />}
         {plan.tools.map((t) => {
           const a = acc(t);
           const st = statusOf(a, live);
           const ready = st.label === "Ready";
           const links =
-            t === "WAYNERING" ? [{ href: "/api/hub/open/wayneRing?page=calls", label: "Calls ↗", external: true }, { href: "/api/hub/open/wayneRing?page=receptionist", label: "Receptionist ↗", external: true }]
+            t === "REGULARS" ? [{ href: "/api/hub/open/regulars", label: "Open Regulars ↗", external: true }, { href: "/api/hub/open/regulars?page=offers", label: "Offers ↗", external: true }]
+            : t === "WAYNERING" ? [{ href: "/api/hub/open/wayneRing?page=calls", label: "Calls ↗", external: true }, { href: "/api/hub/open/wayneRing?page=receptionist", label: "Receptionist ↗", external: true }]
             : t === "FIELD_SERVICE" ? [{ href: "/api/hub/open/field-service", label: "Schedule & jobs ↗", external: true }]
             : t === "GMB" ? [{ href: "/api/hub/open/gmb", label: `Open ${TOOL_NAMES.google} ↗`, external: true }, { href: "/dashboard/growth", label: "AI suggestions" }]
             : t === "LOYVEXA" ? [{ href: "/api/hub/open/loyvexa", label: "Open Loyvexa ↗", external: true }]

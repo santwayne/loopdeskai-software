@@ -704,7 +704,7 @@ model ToolAccount {
   id         String   @id @default(cuid())
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  /// Tool: WAYNERING | FIELD_SERVICE | GMB | VIDEO | KORVO | LOYVEXA
+  /// Tool: REGULARS | WAYNERING | FIELD_SERVICE | GMB | VIDEO | KORVO | LOYVEXA
   tool       String
   /// Status: PENDING | ACTIVE | PAUSED | FAILED
   status     String   @default("PENDING")
@@ -749,9 +749,9 @@ model Product {
   description String?
   /// Where the client opens it (manual software) or our website for it.
   url         String?
-  /// Connect: HUB (Regulars itself) | AUTO (account made automatically, one login) | MANUAL (our team sets it up)
+  /// Connect: AUTO (account made automatically, one login) | MANUAL (our team sets it up)
   connect     String  @default("MANUAL")
-  /// For AUTO: which connected tool it is (WAYNERING | FIELD_SERVICE | GMB | VIDEO).
+  /// For AUTO: which connected tool it is (REGULARS | WAYNERING | FIELD_SERVICE | GMB | VIDEO | KORVO | LOYVEXA). HUB = the old Regulars row, before ensureCatalog() switches it.
   hubTool     String? @unique
   /// Optional list prices, in rupees / Canadian dollars per month.
   priceInr    Int?

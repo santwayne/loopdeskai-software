@@ -1,7 +1,9 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { businessTools } from "@/lib/hub/catalog-rules";
+import { businessTools, isRegularsPage } from "@/lib/hub/catalog-rules";
+import { regularsPagesFor } from "@/lib/hub/catalog";
 import { switcherItems } from "@/lib/hub/switcher";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -18,12 +20,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect(user.role === "SUPER_ADMIN" ? "/admin" : "/api/auth/clear-session");
   }
 
+  // Regulars is a tool, not part of every bundle: its pages here are only for
+  // clients whose bundle includes it (step 1 of the split, Nov 2026).
+  const regularsPages = await regularsPagesFor(business);
+  if (!regularsPages && isRegularsPage(headers().get("x-pathname"))) redirect("/dashboard?hub=no-regulars");
+
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardNav
         businessName={business.name}
         isSuperAdmin={user.role === "SUPER_ADMIN"}
         isManager={business.ownerId !== user.id}
+        regularsPages={regularsPages}
         bundle={business.bundleStatus === "NONE" ? undefined : {
           calls: businessTools(business).includes("WAYNERING"),
           jobs: businessTools(business).includes("FIELD_SERVICE"),

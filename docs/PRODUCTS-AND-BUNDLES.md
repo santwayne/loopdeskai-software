@@ -4,7 +4,8 @@ Admin → **Products & Bundles** (`/admin/catalog`). Is page se apne saare softw
 
 ## 1. Software (catalog)
 - Built-in, jo pehle se list mein aate hain:
-  - **Regulars (Hub):** har bundle mein hota hai.
+  - **Loopdesk AI khud hub hai** (login, inbox, billing, WhatsApp number). Yeh har bundle ke saath aata hai, catalog mein product nahi hai.
+  - **Regulars (Auto-connect, Nov 2026):** ab baaki tools jaisa ek optional tool hai. Sirf un bundles mein jahan Regulars tick hai: client ka Regulars account apne aap banta hai aur home page ke "Open Regulars ↗" se ek click mein khulta hai. Server pe `REGULARS_API_URL`, `REGULARS_APP_URL`, `HUB_SECRET_REGULARS` chahiye (Regulars server pe wahi secret `HUB_SECRET` mein).
   - **WayneRing, Jobs (CRM), GMB Manager, AI Video Studio (Auto-connect):** client ka account apne aap banta hai, aur client ek login se in sab mein jaata hai.
 - **Loyvexa** ab **Auto-connect** hai (Nov 2026): bundle dete hi Loyvexa mein client ka brand aur pehla admin (owner ka email) apne aap banta hai, bundle lapse hone pe brand pause hota hai, aur client home page ke "Open Loyvexa ↗" se ek click mein brand console kholta hai. Iske liye server pe `LOYVEXA_API_URL`, `LOYVEXA_APP_URL` aur `HUB_SECRET_LOYVEXA` set hone chahiye (Loyvexa server pe wahi secret `HUB_SECRET` mein).
 - **Loyvexa ka WhatsApp Regulars se** (bundle rule 4, Nov 2026): ek client = ek WhatsApp number, jo Regulars Settings mein hai (apna number, warna shared Loopdesk number). Loyvexa ka bot, OTP, scheme messages aur campaigns `POST /api/hub/tools/loyvexa/whatsapp/send` se isi number se jaate hain. Jin dealers/mechanics ko Loyvexa ne likha hai (`HubWaContact`), unke jawab Regulars inbox mein nahi aate, seedha Loyvexa ke bot ko jaate hain. Loyvexa ke templates Meta mein `loyvexa_<event>` naam se approve karne hain (jaise `loyvexa_otp`, `loyvexa_ai_slab`). Contract: `lib/hub/tool-whatsapp.ts`. Provision ab `tools` bhi bhejta hai, taaki Loyvexa AI calls sirf WayneRing wale package mein dikhaye.
@@ -13,7 +14,7 @@ Admin → **Products & Bundles** (`/admin/catalog`). Is page se apne saare softw
 - Software ka naam, description, link aur price edit kar sakte ho. "Switch off" karne se wo naye bundles mein nahi dikhta. Jo bundles use pehle se use kar rahe hain, unke clients ke liye wo pause ho jaata hai.
 
 ## 2. Bundles
-- **+ New bundle**: naam do, software pe tick lagao (Regulars hamesha shaamil rehta hai), price daalo (₹ / C$), billing monthly ya yearly chuno, aur zaroorat ho to Growth Manager ON karo.
+- **+ New bundle**: naam do, software pe tick lagao (Regulars bhi ab optional hai), price daalo (₹ / C$), billing monthly ya yearly chuno, aur zaroorat ho to Growth Manager ON karo.
 - Bundle edit karte hi uske **saare clients** pe change lag jaata hai:
   - naya connected software apne aap set up ho jaata hai
   - hataya gaya software pause hota hai, delete nahi hota
@@ -44,3 +45,9 @@ Har software ke liye ye 2-3 din ka kaam hai.
 - Online payment band hai (`NEXT_PUBLIC_ONLINE_PAYMENTS` false). Customer plan chunta hai → request save hoti hai → **Admin → Bundles** mein woh client sabse upar "Asked for …" ke saath dikhta hai, plan pehle se select hota hai → days + paid amount daalo → **Activate**.
 - Website ka "Start free trial" ab seedha app ka `/signup` kholta hai (ek hi signup).
 - **Admin → Clients** mein har client ke liye WhatsApp aur SMS messages per month haath se daal sakte ho. Khaali = no limit. Haath se daali limit plan change pe nahi badalti.
+
+## Regulars ab tool hai, hub nahi (Nov 2026)
+- Loopdesk AI hub hai. Regulars (regulars.wayneesolutions.com) Korvo/Loyvexa jaisa tool hai: alag app, alag database.
+- Step 1 (ab): jin bundles mein Regulars tick **nahi** hai, unke clients ko Loopdesk mein Customers, Offers, Counter, Report, Reviews, Outlets, QR codes aur Calling scripts pages nahi dikhte (`REGULARS_PAGES` in `lib/hub/catalog-rules.ts`). Inbox, Growth Manager, Team, Billing aur Settings (WhatsApp number) sabke liye rehte hain. Built-in plans (Answer, Answer + Return, Grow) pehle jaise hi.
+- Jin bundles mein Regulars tick hai, unke clients ko yeh pages Loopdesk mein bhi dikhte hain aur "Open Regulars ↗" bhi. Step 2 mein Restaurant Bundle aur Growth wale features Regulars app mein jaayenge aur Loopdesk se yeh pages hatenge.
+- Contract: Regulars mein `POST /api/hub/provision` aur `/sso` → `POST /api/hub/sso/exchange` (repo arpanwayne/regularsplatform).

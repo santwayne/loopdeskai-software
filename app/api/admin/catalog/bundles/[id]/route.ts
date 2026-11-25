@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/admin";
 import { logEvent } from "@/lib/logger";
-import { syncBundle, withHub } from "@/lib/hub/catalog";
+import { syncBundle, knownProducts } from "@/lib/hub/catalog";
 import { bundleFields } from "@/lib/hub/catalog-schemas";
 
 const updateSchema = z.object({
@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   await prisma.$transaction(async (tx) => {
     await tx.bundle.update({ where: { id: bundle.id }, data });
     if (productIds) {
-      const ids = await withHub(productIds);
+      const ids = await knownProducts(productIds);
       await tx.bundleProduct.deleteMany({ where: { bundleId: bundle.id, productId: { notIn: ids } } });
       for (const productId of ids) {
         await tx.bundleProduct.upsert({ where: { bundleId_productId: { bundleId: bundle.id, productId } }, create: { bundleId: bundle.id, productId }, update: {} });

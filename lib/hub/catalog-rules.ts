@@ -19,7 +19,10 @@ export type CatalogProduct = {
  * how they connect (that is code).
  */
 export const BUILT_IN_PRODUCTS: CatalogProduct[] = [
-  { key: "regulars", name: "Regulars", description: "Customers, inbox, WhatsApp/SMS follow-ups — the hub every bundle includes", url: null, connect: "HUB", hubTool: null, sortOrder: 0 },
+  // Regulars was the "HUB" product every bundle had to include. Since Nov 2026
+  // Loopdesk is the hub and Regulars is an optional tool; ensureCatalog()
+  // switches the existing row over and re-syncs its bundles.
+  { key: "regulars", name: "Regulars", description: "Customer loyalty: offers, win-backs and WhatsApp follow-ups", url: null, connect: "AUTO", hubTool: "REGULARS", sortOrder: 0 },
   { key: "waynering", name: "WayneRing", description: "AI receptionist: answers calls, books, texts back missed calls", url: null, connect: "AUTO", hubTool: "WAYNERING", sortOrder: 10 },
   { key: "field-service", name: "Jobs (CRM)", description: "Quotes, jobs, technicians and invoices", url: null, connect: "AUTO", hubTool: "FIELD_SERVICE", sortOrder: 20 },
   { key: "gmb", name: "GMB Manager", description: "Google reviews and posts", url: null, connect: "AUTO", hubTool: "GMB", sortOrder: 30 },
@@ -78,6 +81,33 @@ export function toolsForSector(tools: Tool[], sector: string | null | undefined)
 /** Same rule for catalog products (by key), e.g. manual set-ups. */
 export function productFitsSector(productKey: string, sector: string | null | undefined) {
   return sectorShowsDealerTools(sector) || !DEALER_PRODUCT_KEYS.includes(productKey);
+}
+
+/**
+ * Pages that came from Regulars when Loopdesk was split off it (customers,
+ * offers, loyalty counter, restaurant report/reviews/outlets, QR join,
+ * calling scripts). Step 1 of making Regulars a separate tool (Nov 2026):
+ * they stay in Loopdesk, but only for clients whose bundle includes
+ * Regulars. Inbox, Growth Manager, Team, Billing and Settings (with the
+ * WhatsApp number every tool sends through) are Loopdesk's own and stay for all.
+ */
+export const REGULARS_PAGES = [
+  "/dashboard/customers", "/dashboard/offers", "/dashboard/counter", "/dashboard/report",
+  "/dashboard/reviews", "/dashboard/outlets", "/dashboard/qr", "/dashboard/calling-scripts",
+];
+
+export function isRegularsPage(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return REGULARS_PAGES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * Who sees the Regulars pages: built-in plans (Answer / Answer + Return /
+ * Grow) and clients with no bundle keep them as before; a custom bundle only
+ * if Regulars is ticked in it.
+ */
+export function showsRegularsPages(b: { customBundleId: string | null }, bundleHasRegulars: boolean): boolean {
+  return !b.customBundleId || bundleHasRegulars;
 }
 
 /** Days one payment covers. */

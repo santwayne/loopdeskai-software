@@ -9,10 +9,12 @@ import {
 import { growthAllowed } from "../lib/growth/access";
 import { TOOLS } from "../lib/hub/plans";
 
-test("every built-in tool is in the catalog exactly once, plus Regulars as the hub", () => {
+test("every built-in tool is in the catalog exactly once, Regulars included (Loopdesk is the hub)", () => {
   const tools = BUILT_IN_PRODUCTS.filter((p) => p.connect === "AUTO").map((p) => p.hubTool);
   assert.deepEqual([...tools].sort(), [...TOOLS].sort());
-  assert.equal(BUILT_IN_PRODUCTS.filter((p) => p.connect === "HUB").length, 1);
+  // Nov 2026: Loopdesk is the hub; no catalog product is forced into every bundle.
+  assert.equal(BUILT_IN_PRODUCTS.filter((p) => p.connect === "HUB").length, 0);
+  assert.equal(BUILT_IN_PRODUCTS.find((p) => p.key === "regulars")?.hubTool, "REGULARS");
   const keys = [...BUILT_IN_PRODUCTS, ...STARTER_PRODUCTS].map((p) => p.key);
   assert.equal(new Set(keys).size, keys.length, "keys are unique");
   // Loyvexa (Nov 2026) and Korvo (21 Nov 2026) connect automatically.

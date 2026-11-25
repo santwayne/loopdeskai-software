@@ -5,17 +5,18 @@ import { TOOL_NAMES } from "@/lib/brand";
 /**
  * Bundle A as one product: one signup, one bill, one login.
  *
- * Regulars is the hub. Each plan switches on a set of tools; the hub creates
+ * Loopdesk AI is the hub. Each plan switches on a set of tools; the hub creates
  * the business's account in each of them (lib/hub/provision.ts) and signs the
- * owner in with one click (app/api/hub/open/[tool]).
+ * owner in with one click (app/api/hub/open/[tool]). Regulars is one of those
+ * tools since Nov 2026, like Korvo and Loyvexa (its own app and database).
  *
  * Prices: CAD are the published Front Desk prices. INR are a DRAFT — confirm
  * before taking Indian payments.
  */
-export type Tool = "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA";
+export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA";
 // Order matters: set-up runs in this order, and Loyvexa needs the Korvo
 // company code, so KORVO comes before LOYVEXA (fault H5).
-export const TOOLS: Tool[] = ["WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA"];
+export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA"];
 export type Currency = "CAD" | "INR";
 
 export type BundlePlan = {
@@ -62,6 +63,15 @@ export const TOOL_META: Record<Tool, {
   /** Pages the owner may be sent to after single sign-on. */
   pages?: Record<string, string>;
 }> = {
+  // Customer loyalty on WhatsApp (regulars.wayneesolutions.com). A tool like
+  // any other since Nov 2026: only bundles that include it get an account,
+  // and the owner opens it with one click (Regulars /sso). Needs
+  // HUB_SECRET there = HUB_SECRET_REGULARS here.
+  REGULARS: {
+    name: "Regulars", blurb: "Customer loyalty: offers, win-backs and WhatsApp follow-ups", ownerLogin: true,
+    apiEnv: "REGULARS_API_URL", appEnv: "REGULARS_APP_URL", secretEnv: "HUB_SECRET_REGULARS",
+    pages: { home: "/dashboard", offers: "/dashboard/offers", customers: "/dashboard/customers" },
+  },
   WAYNERING: {
     name: TOOL_NAMES.calls, blurb: "Calls, recordings and your AI receptionist", ownerLogin: true,
     apiEnv: "WAYNERING_API_URL", appEnv: "WAYNERING_APP_URL", secretEnv: "HUB_SECRET_WAYNERING",

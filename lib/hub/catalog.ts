@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/logger";
 import { getSettings } from "@/lib/growth/settings";
 import { provisionBusiness } from "@/lib/hub/provision";
-import { BUILT_IN_PRODUCTS, STARTER_PRODUCTS, encodeTools, periodDays, toolsFromProducts } from "@/lib/hub/catalog-rules";
+import { BUILT_IN_PRODUCTS, STARTER_PRODUCTS, encodeTools, periodDays, showsRegularsPages, toolsFromProducts } from "@/lib/hub/catalog-rules";
 
 export * from "@/lib/hub/catalog-rules";
 
@@ -150,11 +150,23 @@ export async function customBundleView(businessId: string) {
   return { bundle, products, tools: toolsFromProducts(products), manual };
 }
 
-/** Every bundle includes Regulars (the hub: login, inbox, customers, billing). */
-export async function withHub(productIds: string[]) {
-  const hub = await prisma.product.findFirst({ where: { connect: "HUB" }, select: { id: true } });
+/**
+ * Does this client see the Regulars pages in Loopdesk? Checked on the bundle's
+ * products by key, so it's right even before the catalog has been re-synced.
+ */
+export async function regularsPagesFor(b: { customBundleId: string | null }): Promise<boolean> {
+  if (!b.customBundleId) return showsRegularsPages(b, false);
+  const n = await prisma.bundleProduct.count({ where: { bundleId: b.customBundleId, product: { key: "regulars", active: true } } });
+  return showsRegularsPages(b, n > 0);
+}
+
+/**
+ * The picked products that exist. Loopdesk itself is the hub (login, inbox,
+ * billing), so nothing is added: Regulars used to be forced into every
+ * bundle, and is now an optional tool like the rest (Nov 2026).
+ */
+export async function knownProducts(productIds: string[]) {
   const ids = new Set(productIds);
-  if (hub) ids.add(hub.id);
   const found = await prisma.product.findMany({ where: { id: { in: Array.from(ids) } }, select: { id: true } });
   return found.map((p) => p.id);
 }

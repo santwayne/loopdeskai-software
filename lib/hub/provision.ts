@@ -21,6 +21,7 @@ import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
  * The tool answers the same account for the same hubBusinessId every time.
  */
 export const PATH: Record<Tool, string> = {
+  REGULARS: "/api/hub/provision",
   WAYNERING: "/api/hub/provision",
   FIELD_SERVICE: "/api/v1/hub/provision",
   GMB: "/api/hub/provision",
@@ -28,7 +29,7 @@ export const PATH: Record<Tool, string> = {
   KORVO: "/api/v1/hub/loopdesk/provision",
   LOYVEXA: "/api/hub/provision",
 };
-/** Tools that report events back into Regulars and so get an rk_live_ key. */
+/** Tools that report events back into Loopdesk (the hub) and so get an rk_live_ key. */
 const REPORTS_EVENTS: Tool[] = ["WAYNERING", "FIELD_SERVICE"];
 export const MAX_ATTEMPTS = 8;
 
