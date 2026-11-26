@@ -153,6 +153,7 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
             : t === "GMB" ? [{ href: "/api/hub/open/gmb", label: `Open ${TOOL_NAMES.google} ↗`, external: true }, { href: "/dashboard/growth", label: "AI suggestions" }]
             : t === "LOYVEXA" ? [{ href: "/api/hub/open/loyvexa", label: "Open Loyvexa ↗", external: true }]
             : t === "KORVO" ? [{ href: "/api/hub/open/korvo", label: "Open Korvo ↗", external: true }]
+            : t === "SEHAT_SAATHI" ? [{ href: "/api/hub/open/sehat-saathi", label: "Open Sehat Saathi ↗", external: true }, { href: "/api/hub/open/sehat-saathi?page=flags", label: "Urgent flags ↗", external: true }]
             : [{ href: "/api/hub/open/video?page=make", label: "Make an ad ↗", external: true }, { href: "/dashboard/growth", label: "Reel ideas" }];
           const note = t === "GMB" && ready && !gmb.connected ? "Open it to connect your Google listing" : t === "WAYNERING" && ready && wr.phoneNumber ? wr.phoneNumber : TOOL_META[t].ownerLogin ? null : "Run for you by our team";
           return <Tile key={t} name={TOOL_META[t].name} blurb={TOOL_META[t].blurb} status={st} note={note} links={ready || !TOOL_META[t].ownerLogin ? links : []} />;

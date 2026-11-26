@@ -1,3 +1,4 @@
+import { toolMetaTemplates } from "@/lib/hub/tool-templates";
 import { allMetaTemplates, type WaLang, type WaTemplateKey } from "@/lib/whatsapp-templates";
 import { otpTemplatePayload } from "@/lib/whatsapp-otp";
 
@@ -15,7 +16,8 @@ const GRAPH = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION |
 export type MetaTemplateStatus = { name: string; language: string; status: string; category?: string; rejected_reason?: string };
 
 export type TemplateRow = {
-  key: WaTemplateKey; lang: WaLang; name: string; language: string; category: string; body: string;
+  /** WaTemplateKey for Regulars' own templates; "<tool>:<name>" for a tool's (lib/hub/tool-templates.ts). */
+  key: WaTemplateKey | string; lang: WaLang | string; name: string; language: string; category: string; body: string;
   metaStatus: string | null; metaCategory: string | null; rejectedReason: string | null;
 };
 
@@ -35,7 +37,7 @@ export async function listMetaTemplates(wabaId: string, token: string): Promise<
 /** Our templates joined with Meta's status for each (null = not submitted). */
 export function mergeStatus(meta: MetaTemplateStatus[]): TemplateRow[] {
   const byKey = new Map(meta.map((m) => [`${m.name}|${m.language}`, m]));
-  return allMetaTemplates().map((t) => {
+  return [...allMetaTemplates(), ...toolMetaTemplates()].map((t) => {
     const m = byKey.get(`${t.name}|${t.language}`);
     return {
       key: t.key, lang: t.lang, name: t.name, language: t.language, category: t.category, body: t.components[0].text,
@@ -54,7 +56,7 @@ export type SubmitResult = { name: string; language: string; result: "SUBMITTED"
 export async function submitAllTemplates(wabaId: string, token: string): Promise<SubmitResult[]> {
   const existing = new Set((await listMetaTemplates(wabaId, token)).map((m) => `${m.name}|${m.language}`));
   const results: SubmitResult[] = [];
-  for (const t of allMetaTemplates()) {
+  for (const t of [...allMetaTemplates(), ...toolMetaTemplates()]) {
     if (existing.has(`${t.name}|${t.language}`)) {
       results.push({ name: t.name, language: t.language, result: "ALREADY_THERE" });
       continue;

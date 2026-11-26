@@ -13,10 +13,10 @@ import { TOOL_NAMES } from "@/lib/brand";
  * Prices: CAD are the published Front Desk prices. INR are a DRAFT — confirm
  * before taking Indian payments.
  */
-export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA";
+export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA" | "SEHAT_SAATHI";
 // Order matters: set-up runs in this order, and Loyvexa needs the Korvo
 // company code, so KORVO comes before LOYVEXA (fault H5).
-export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA"];
+export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA", "SEHAT_SAATHI"];
 export type Currency = "CAD" | "INR";
 
 export type BundlePlan = {
@@ -110,6 +110,16 @@ export const TOOL_META: Record<Tool, {
     name: "Loyvexa", blurb: "Dealer and mechanic loyalty: QR points, schemes, UPI payouts", ownerLogin: true,
     apiEnv: "LOYVEXA_API_URL", appEnv: "LOYVEXA_APP_URL", secretEnv: "HUB_SECRET_LOYVEXA",
     pages: { home: "/admin/" },
+  },
+  // Hospital / clinic package (Nov 2026): WhatsApp patient follow-up in Hindi,
+  // Punjabi and English. Sold through custom bundles. The hub creates the
+  // hospital and its first admin (the owner), pauses it when the bundle lapses,
+  // signs staff in, and sends / receives its WhatsApp on the business's number
+  // (patients, family members, prescription photos, voice notes).
+  SEHAT_SAATHI: {
+    name: "Sehat Saathi", blurb: "Patient follow-up on WhatsApp: prescriptions explained, check-ins, urgent flags", ownerLogin: true,
+    apiEnv: "SEHAT_SAATHI_API_URL", appEnv: "SEHAT_SAATHI_APP_URL", secretEnv: "HUB_SECRET_SEHAT_SAATHI",
+    pages: { home: "/app", flags: "/app/flags", patients: "/app/patients", prescriptions: "/app/prescriptions" },
   },
 };
 

@@ -32,8 +32,24 @@ import { whatsappSenderFor, type WaSender } from "@/lib/whatsapp-sender";
  */
 
 /** Tools that may send WhatsApp through the hub. */
-export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA" };
-const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa" };
+export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA", "sehat-saathi": "SEHAT_SAATHI" };
+const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi" };
+
+/**
+ * Sehat Saathi (hospital package) differs from Loyvexa in three ways:
+ *  - patients write FIRST (QR / bed code on the ward wall), so on a hospital's
+ *    number a message from someone no tool or Regulars has written to goes to
+ *    Sehat Saathi instead of the Regulars inbox (DEFAULT_INBOUND_TOOL);
+ *  - it needs the whole WhatsApp message (prescription photos, voice notes,
+ *    documents), not just the text (RAW_INBOUND);
+ *  - it downloads that media through the hub, because the media belongs to the
+ *    business's WABA: GET /api/hub/tools/sehat-saathi/whatsapp/media/:mediaId
+ *    (purpose "whatsapp-media"), only for media the hub forwarded to it.
+ * It may also send a WhatsApp catalog button (pharmacy refills).
+ */
+const RAW_INBOUND: Tool[] = ["SEHAT_SAATHI"];
+export const DEFAULT_INBOUND_TOOL: Tool = "SEHAT_SAATHI";
+const MEDIA_TYPES = ["image", "audio", "document", "video", "sticker"];
 
 export class ToolWaError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -46,7 +62,7 @@ export const waDigits = (s: string) => String(s ?? "").replace(/\D/g, "");
  * Checks the payload a tool asks us to send. Only plain text and approved
  * templates; nothing that could address someone else or change the sender.
  */
-export function checkToolMessage(body: unknown): { to: string; message: Record<string, unknown>; kind: "text" | "template"; templateName: string | null } {
+export function checkToolMessage(body: unknown): { to: string; message: Record<string, unknown>; kind: "text" | "template" | "interactive"; templateName: string | null } {
   const b = (body ?? {}) as { to?: unknown; message?: Record<string, unknown> };
   const to = waDigits(String(b.to ?? ""));
   if (to.length < 10 || to.length > 15) throw new ToolWaError(400, "BAD_NUMBER", "to must be a mobile number with country code");
@@ -64,7 +80,21 @@ export function checkToolMessage(body: unknown): { to: string; message: Record<s
     const components = Array.isArray(t.components) ? t.components : [];
     return { to, kind: "template", templateName: t.name, message: { type: "template", template: { name: t.name, language: { code }, components } } };
   }
-  throw new ToolWaError(400, "BAD_MESSAGE", "message.type must be text or template");
+  // WhatsApp catalog button (Sehat Saathi pharmacy refills). Only the catalog
+  // message shape: no buttons that could open other links or act for the business.
+  if (m.type === "interactive") {
+    const i = (m.interactive ?? {}) as { type?: unknown; body?: { text?: unknown }; action?: { name?: unknown; parameters?: Record<string, unknown> } };
+    const text = i.body?.text;
+    if (i.type !== "catalog_message" || i.action?.name !== "catalog_message" || typeof text !== "string" || !text.trim()) {
+      throw new ToolWaError(400, "BAD_MESSAGE", "only interactive catalog_message is allowed");
+    }
+    const thumb = i.action?.parameters?.thumbnail_product_retailer_id;
+    return {
+      to, kind: "interactive" as const, templateName: null,
+      message: { type: "interactive", interactive: { type: "catalog_message", body: { text: text.slice(0, 1024) }, action: { name: "catalog_message", parameters: typeof thumb === "string" ? { thumbnail_product_retailer_id: thumb } : {} } } },
+    };
+  }
+  throw new ToolWaError(400, "BAD_MESSAGE", "message.type must be text, template or interactive catalog_message");
 }
 
 /** OTPs still go to people who sent STOP (they asked for the code); nothing else does. */
@@ -172,11 +202,26 @@ async function postToTool(tool: Tool, businessId: string, body: unknown) {
 }
 
 /** A message from one of the tool's people → the tool (its bot answers through sendForTool). */
-export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string }) {
+export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string }, raw?: Record<string, unknown>) {
   const phone = waDigits(m.from);
-  await prisma.hubWaContact.updateMany({ where: { businessId, tool, phone }, data: { lastInboundAt: new Date() } });
+  const now = new Date();
+  // A patient's first message (Sehat Saathi): remember them so replies keep coming here.
+  await prisma.hubWaContact.upsert({
+    where: { businessId_tool_phone: { businessId, tool, phone } },
+    create: { businessId, tool, phone, lastInboundAt: now },
+    update: { lastInboundAt: now },
+  });
+  const wantsRaw = RAW_INBOUND.includes(tool) && !!raw;
+  if (wantsRaw) {
+    // Media the tool may download (and only this media): see mediaForTool.
+    const type = String(raw!.type ?? "");
+    const mediaId = MEDIA_TYPES.includes(type) ? (raw![type] as { id?: unknown } | undefined)?.id : null;
+    if (typeof mediaId === "string") {
+      await prisma.hubWaMessage.upsert({ where: { providerSid: `media:${mediaId}` }, create: { providerSid: `media:${mediaId}`, businessId, tool }, update: {} }).catch(() => {});
+    }
+  }
   try {
-    await postToTool(tool, businessId, { messages: [{ from: phone, text: m.text, id: m.id }] });
+    await postToTool(tool, businessId, { messages: [wantsRaw ? { ...raw, from: phone } : { from: phone, text: m.text, id: m.id }] });
   } catch (err) {
     await logEvent({ businessId, source: "WHATSAPP", level: "ERROR", message: `Could not pass a WhatsApp message on to ${tool}`, meta: { error: err instanceof Error ? err.message : String(err) } });
   }
@@ -203,10 +248,16 @@ export async function forwardStatuses(statuses: { id: string; status: string; er
  * this phone for this business, and more recently than Regulars itself did
  * (a dealer who is also a shop customer goes to whoever spoke last).
  */
-export async function inboundTool(businessId: string, phone: string): Promise<Tool | null> {
+export async function inboundTool(businessId: string, phone: string, tools: Tool[] = []): Promise<Tool | null> {
   const digits = waDigits(phone);
   const c = await prisma.hubWaContact.findFirst({ where: { businessId, phone: digits }, orderBy: { lastOutboundAt: "desc" } });
-  if (!c) return null;
+  if (!c) {
+    // Hospital package: a stranger writing to the hospital is a (new) patient.
+    // Someone Regulars already talks to stays with Regulars.
+    if (!tools.includes(DEFAULT_INBOUND_TOOL)) return null;
+    const known = await prisma.customer.findFirst({ where: { businessId, phone: { in: [digits, `+${digits}`] } }, select: { id: true } });
+    return defaultInboundOwner(tools, !!known);
+  }
   const ours = await prisma.message.findFirst({
     where: { businessId, channel: "WHATSAPP", direction: "OUTBOUND", customer: { phone: { in: [digits, `+${digits}`] } } },
     orderBy: { createdAt: "desc" }, select: { createdAt: true },
@@ -218,4 +269,27 @@ export async function inboundTool(businessId: string, phone: string): Promise<To
 export function pickInboundOwner(contact: { lastOutboundAt: Date | null; createdAt: Date }, regularsLastOutbound: Date | null) {
   const toolAt = contact.lastOutboundAt ?? contact.createdAt;
   return !regularsLastOutbound || toolAt.getTime() >= regularsLastOutbound.getTime();
+}
+
+/** Pure part of the hospital default (unit-tested). */
+export function defaultInboundOwner(tools: Tool[], knownToRegulars: boolean): Tool | null {
+  return tools.includes(DEFAULT_INBOUND_TOOL) && !knownToRegulars ? DEFAULT_INBOUND_TOOL : null;
+}
+
+/**
+ * Media a tool was forwarded (prescription photo, voice note) → its bytes.
+ * Only media the hub passed to this tool for this business can be fetched.
+ */
+export async function mediaForTool(tool: Tool, businessId: string, mediaId: string): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+  if (!/^[A-Za-z0-9_.-]{1,200}$/.test(mediaId)) throw new ToolWaError(400, "BAD_MEDIA", "Bad media id");
+  const mark = await prisma.hubWaMessage.findUnique({ where: { providerSid: `media:${mediaId}` } });
+  if (!mark || mark.businessId !== businessId || mark.tool !== tool) throw new ToolWaError(404, "NOT_FOUND", "Media not found for this business");
+  const { sender } = await senderForTool(businessId, tool);
+  const graph = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || "v21.0"}`;
+  const meta = await fetch(`${graph}/${mediaId}`, { headers: { authorization: `Bearer ${sender.accessToken}` } });
+  const info = (await meta.json().catch(() => ({}))) as { url?: string; mime_type?: string; error?: { message?: string } };
+  if (!meta.ok || !info.url) throw new ToolWaError(502, "MEDIA_FAILED", info.error?.message ?? `Media lookup failed (HTTP ${meta.status})`);
+  const file = await fetch(info.url, { headers: { authorization: `Bearer ${sender.accessToken}` } });
+  if (!file.ok) throw new ToolWaError(502, "MEDIA_FAILED", `Media download failed (HTTP ${file.status})`);
+  return { bytes: await file.arrayBuffer(), contentType: file.headers.get("content-type") || info.mime_type || "application/octet-stream" };
 }
