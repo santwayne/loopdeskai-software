@@ -293,3 +293,85 @@ export async function mediaForTool(tool: Tool, businessId: string, mediaId: stri
   if (!file.ok) throw new ToolWaError(502, "MEDIA_FAILED", `Media download failed (HTTP ${file.status})`);
   return { bytes: await file.arrayBuffer(), contentType: file.headers.get("content-type") || info.mime_type || "application/octet-stream" };
 }
+
+/* ───────────────────────── Opt-in / opt-out sync ─────────────────────────
+ * tool → hub   POST /api/hub/tools/loyvexa/whatsapp/opt-in
+ *              Bearer tool token, purpose "whatsapp-opt-in"
+ *              body { to, optIn: true | false }  → { ok, updated }
+ *
+ * Loyvexa testing report 2 #1: a dealer sent STOP, then START. Loyvexa cleared
+ * its own flag, but sendForTool still refused the reply ("This person sent
+ * STOP to the business") because the customer row here stayed optedOut.
+ * Loyvexa now calls this before replying to START / YES, and from its
+ * console's "Unblock WhatsApp" button (the business owner's own action).
+ * optIn false records STOP on rows that exist (Loyvexa keeps its own list too).
+ */
+export function checkOptInBody(body: unknown): { to: string; optIn: boolean } {
+  const b = (body ?? {}) as { to?: unknown; optIn?: unknown };
+  const to = waDigits(String(b.to ?? ""));
+  if (to.length < 10 || to.length > 15) throw new ToolWaError(400, "BAD_NUMBER", "to must be a mobile number with country code");
+  if (typeof b.optIn !== "boolean") throw new ToolWaError(400, "BAD_BODY", "optIn must be true or false");
+  return { to, optIn: b.optIn };
+}
+
+/** Phone spellings a customer row may have for these digits. */
+export const phoneVariants = (digits: string) => {
+  const out = new Set([digits, `+${digits}`]);
+  if (digits.length === 12 && digits.startsWith("91")) { out.add(digits.slice(2)); out.add(`0${digits.slice(2)}`); }
+  return Array.from(out);
+};
+
+export async function setOptInForTool(tool: Tool, businessId: string, body: unknown): Promise<{ ok: true; updated: number }> {
+  const { to, optIn } = checkOptInBody(body);
+  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, status: true } });
+  if (!business) throw new ToolWaError(404, "NOT_FOUND", "Business not found");
+  const now = new Date();
+  const r = await prisma.customer.updateMany({
+    where: { businessId, phone: { in: phoneVariants(to) }, optedOut: !optIn },
+    data: optIn ? { optedOut: false, optedOutAt: null } : { optedOut: true, optedOutAt: now },
+  });
+  await logEvent({ businessId, source: "WHATSAPP", level: "INFO", message: `${tool}: ${optIn ? "opted back in (START)" : "opted out (STOP)"}`, meta: { to, updated: r.count } });
+  return { ok: true, updated: r.count };
+}
+
+/* ───────────────────────── Approved templates for a tool ─────────────────
+ * tool → hub   GET /api/hub/tools/loyvexa/whatsapp/templates
+ *              Bearer tool token, purpose "whatsapp-templates"
+ *              → { templates: [{ name, language, category, body, params, status }] }
+ *
+ * Loyvexa testing report 2 #6: a campaign ran with loyvexa_scheme_bonus that
+ * Meta had not approved. Loyvexa now only offers templates listed here with
+ * status APPROVED. Only the tool's own templates (name prefix "loyvexa_",
+ * "sehat_") from the WhatsApp Business Account the business sends from.
+ * The shared Loopdesk number uses WHATSAPP_SHARED_WABA_ID. A location with
+ * its own number has no WABA ID saved here yet → 409 NO_WABA.
+ */
+export const TOOL_TEMPLATE_PREFIX: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa_", SEHAT_SAATHI: "sehat_" };
+
+type MetaTpl = { name: string; language: string; status: string; category?: string; components?: { type: string; text?: string }[] };
+const countVars = (text: string) => new Set(text.match(/\{\{\s*\d+\s*\}\}/g) ?? []).size;
+
+/** Pure part (unit-tested): the tool's templates, in Loyvexa's shape. */
+export function toolTemplatesFrom(meta: MetaTpl[], prefix: string) {
+  return meta.filter((t) => t.name.startsWith(prefix)).map((t) => {
+    const body = t.components?.find((c) => c.type === "BODY")?.text ?? null;
+    return { name: t.name, language: t.language, category: t.category ?? null, body, params: body ? countVars(body) : 0, status: String(t.status || "").toUpperCase() };
+  });
+}
+
+export async function templatesForTool(tool: Tool, businessId: string) {
+  const { sender } = await senderForTool(businessId, tool);
+  const wabaId = sender.shared ? process.env.WHATSAPP_SHARED_WABA_ID : null;
+  if (!wabaId) throw new ToolWaError(409, "NO_WABA", sender.shared ? "WHATSAPP_SHARED_WABA_ID is not set on the Loopdesk server" : "This business sends from its own number, and its WhatsApp Business Account ID is not saved in Loopdesk yet");
+  const graph = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || "v21.0"}`;
+  const all: MetaTpl[] = [];
+  let url: string | null = `${graph}/${wabaId}/message_templates?fields=name,language,status,category,components&limit=200`;
+  for (let page = 0; url && page < 10; page++) {
+    const res: Response = await fetch(url, { headers: { authorization: `Bearer ${sender.accessToken}` }, signal: AbortSignal.timeout(10000) });
+    const data = (await res.json().catch(() => ({}))) as { data?: MetaTpl[]; paging?: { next?: string }; error?: { message?: string } };
+    if (!res.ok) throw new ToolWaError(502, "META_FAILED", `Meta ${res.status}: ${data.error?.message ?? "could not list templates"}`);
+    all.push(...(data.data ?? []));
+    url = data.paging?.next ?? null;
+  }
+  return { templates: toolTemplatesFrom(all, TOOL_TEMPLATE_PREFIX[tool] ?? "") };
+}
