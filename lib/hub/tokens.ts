@@ -17,7 +17,7 @@ import { TOOL_META, type Tool } from "@/lib/hub/plans";
  * its own session.
  */
 export const ISSUER = "regulars-hub";
-export const AUDIENCE: Record<Tool, string> = { REGULARS: "regulars", WAYNERING: "wayneRing", FIELD_SERVICE: "fieldService", GMB: "gmb", VIDEO: "videoStudio", KORVO: "korvo", LOYVEXA: "loyvexa" };
+export const AUDIENCE: Record<Tool, string> = { REGULARS: "regulars", WAYNERING: "wayneRing", FIELD_SERVICE: "fieldService", GMB: "gmb", VIDEO: "videoStudio", KORVO: "korvo", LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi" };
 
 export function toolSecret(tool: Tool): string | null {
   const v = process.env[TOOL_META[tool].secretEnv];

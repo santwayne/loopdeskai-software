@@ -51,3 +51,14 @@ Har software ke liye ye 2-3 din ka kaam hai.
 - Step 1 (ab): jin bundles mein Regulars tick **nahi** hai, unke clients ko Loopdesk mein Customers, Offers, Counter, Report, Reviews, Outlets, QR codes aur Calling scripts pages nahi dikhte (`REGULARS_PAGES` in `lib/hub/catalog-rules.ts`). Inbox, Growth Manager, Team, Billing aur Settings (WhatsApp number) sabke liye rehte hain. Built-in plans (Answer, Answer + Return, Grow) pehle jaise hi.
 - Jin bundles mein Regulars tick hai, unke clients ko yeh pages Loopdesk mein bhi dikhte hain aur "Open Regulars ↗" bhi. Step 2 mein Restaurant Bundle aur Growth wale features Regulars app mein jaayenge aur Loopdesk se yeh pages hatenge.
 - Contract: Regulars mein `POST /api/hub/provision` aur `/sso` → `POST /api/hub/sso/exchange` (repo arpanwayne/regularsplatform).
+
+## Sehat Saathi (hospital package, Nov 2026)
+
+Hospitals and clinics: WhatsApp patient follow-up in Hindi, Punjabi and English (prescriptions explained, check-ins, urgent flags to the right doctor). Product key `sehat-saathi`, connect AUTO, tool `SEHAT_SAATHI`.
+
+- Set-up: like Loyvexa. Put Sehat Saathi in a custom bundle; the hospital and its first admin (the owner) are created by `POST {SEHAT_SAATHI_API_URL}/api/hub/provision`, paused when the bundle lapses.
+- Open: "Open Sehat Saathi ↗" and "Urgent flags ↗" on the home screen, and in the tool switcher.
+- WhatsApp: the hospital's number. A stranger writing to a hospital is treated as a new patient and goes to Sehat Saathi (QR / bed code enrolment); known Regulars customers stay in the inbox. Whole messages are forwarded (photos, voice notes); Sehat Saathi downloads media through `GET /api/hub/tools/sehat-saathi/whatsapp/media/:id`. Give hospitals their own number: on the shared number a stranger can't be matched to a business.
+- Calls: only with WayneRing in the same bundle (Sehat Saathi calls through WayneRing).
+- Templates: `sehat_*` in en / hi / pa (lib/hub/tool-templates.ts), submitted with the others from Admin → WhatsApp templates.
+- Env: `HUB_SECRET_SEHAT_SAATHI` (= `HUB_SECRET` on Sehat Saathi), `SEHAT_SAATHI_API_URL` (backend), `SEHAT_SAATHI_APP_URL` (dashboard).

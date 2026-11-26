@@ -16,6 +16,7 @@ const ORDER: { id: string; tool?: Tool; name: string; blurb: string; slug?: stri
   { id: "loyvexa", tool: "LOYVEXA", name: "Loyvexa", blurb: "Channel loyalty", slug: "loyvexa" },
   // Set up and opened by the hub since Nov 2026 (H9).
   { id: "korvo", tool: "KORVO", name: "Korvo", blurb: "Distributor app with Tally", slug: "korvo" },
+  { id: "sehat-saathi", tool: "SEHAT_SAATHI", name: "Sehat Saathi", blurb: "Patient follow-up", slug: "sehat-saathi" },
 ];
 
 export function switcherItems(tools: Tool[]): SwitcherItem[] {

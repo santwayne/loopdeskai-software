@@ -1,3 +1,4 @@
+import { businessTools } from "@/lib/hub/catalog-rules";
 import { NextRequest, NextResponse } from "next/server";
 import type { Business, Location } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -220,9 +221,9 @@ export async function POST(req: NextRequest) {
 
           // A tool's person (Loyvexa dealer / mechanic: "points", "order", "2"…) —
           // the tool's bot answers through the hub; not a Regulars customer.
-          const tool = await inboundTool(business.id, message.from);
+          const tool = await inboundTool(business.id, message.from, businessTools(business));
           if (tool) {
-            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id });
+            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id }, message as unknown as Record<string, unknown>);
             continue;
           }
 
