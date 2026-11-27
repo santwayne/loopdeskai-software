@@ -20,7 +20,8 @@ test("bugs 2 + 10: an autofilled email in Phone number ID is never used to send"
   assert.equal(whatsappSenderFor({ whatsappPhoneNumberId: "109876543210123", whatsappAccessToken: "EAAG" }, { country: "IN" })?.shared, false);
   setEnv("WHATSAPP_SHARED_PHONE_NUMBER_ID", undefined); setEnv("WHATSAPP_SHARED_ACCESS_TOKEN", undefined);
   const form = read("components/locations-manager.tsx");
-  assert.match(form, /autoComplete="new-password"/);
+  // Retest 27 Nov 2026: the token box is masked text, not type="password" (Chrome treated it as a login form).
+  assert.match(form, /WebkitTextSecurity/);
   assert.match(form, /whatsappDisconnect: true/);
   assert.match(read("components/team-manager.tsx"), /type="password" autoComplete="new-password"/);
 });
