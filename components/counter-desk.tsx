@@ -76,7 +76,7 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
   const input = "w-full rounded-input border border-control px-3 py-2 text-sm";
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <form onSubmit={recordBill} className="space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">
+      <form onSubmit={recordBill} className="min-w-0 space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">
         <h2 className="font-medium">Customer and bill</h2>
         {locations.length > 1 && (
           <select className={input} value={locationId} onChange={(e) => { setLocationId(e.target.value); setCustomer(null); }}>
@@ -84,11 +84,11 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
           </select>
         )}
         <div className="flex gap-2">
-          <input className={input} inputMode="tel" placeholder="Customer mobile, e.g. 98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={lookup} required />
-          <button type="button" onClick={lookup} className="rounded-full border border-control px-3 hover:bg-gray-50">Find</button>
+          <input className={`${input} min-w-0`} inputMode="tel" placeholder="Customer mobile, e.g. 98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={lookup} required />
+          <button type="button" onClick={lookup} className="shrink-0 rounded-full border border-control px-3 hover:bg-gray-50">Find</button>
         </div>
         <input className={input} placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
-        <div className="flex gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <input className={input} type="number" min={0} step="0.01" placeholder="Bill amount" value={amount} onChange={(e) => setAmount(e.target.value)} required />
           <input className={input} placeholder="Bill no. (optional)" value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
         </div>
@@ -101,16 +101,16 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
         )}
       </form>
 
-      <section className="space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">
+      <section className="min-w-0 space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">
         <h2 className="font-medium">Points and wallet</h2>
         {!customer ? <p className="text-gray-500">Find a customer to see their points.</p> : (
           <>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Tier</p><p className="text-lg font-semibold">{customer.tier}</p></div>
-              <div className="rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Points</p><p className="text-lg font-semibold">{customer.points}</p><p className="text-xs text-gray-500">worth {money(customer.pointsValue)}</p></div>
-              <div className="rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Wallet</p><p className="text-lg font-semibold">{money(customer.walletRupees)}</p></div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
+              <div className="min-w-0 rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Tier</p><p className="break-words text-lg font-semibold">{customer.tier}</p></div>
+              <div className="min-w-0 rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Points</p><p className="break-words text-lg font-semibold">{customer.points}</p><p className="text-xs text-gray-500">worth {money(customer.pointsValue)}</p></div>
+              <div className="min-w-0 rounded-card bg-gray-50 p-3"><p className="text-xs text-gray-500">Wallet</p><p className="break-words text-lg font-semibold">{money(customer.walletRupees)}</p></div>
             </div>
-            <p className="text-gray-600">{customer.name ?? "No name"} · {customer.visits} bills{customer.referralCode ? <> · friend code <b>{customer.referralCode}</b></> : null}</p>
+            <p className="break-words text-gray-600">{customer.name ?? "No name"} · {customer.visits} bills{customer.referralCode ? <> · friend code <b>{customer.referralCode}</b></> : null}</p>
             {loyalty ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
@@ -118,16 +118,16 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
                     <option value="POINTS">Use points</option>
                     <option value="WALLET">Use wallet (₹)</option>
                   </select>
-                  <input className="w-32 rounded-input border border-control px-3 py-2" type="number" min={1} placeholder={redeem.kind === "POINTS" ? "Points" : "₹"} value={redeem.amount} onChange={(e) => setRedeem({ ...redeem, amount: e.target.value })} />
+                  <input className="w-32 min-w-0 rounded-input border border-control px-3 py-2" type="number" min={1} placeholder={redeem.kind === "POINTS" ? "Points" : "₹"} value={redeem.amount} onChange={(e) => setRedeem({ ...redeem, amount: e.target.value })} />
                   <button type="button" disabled={busy || !redeem.amount} onClick={sendCode} className="rounded-full border border-control px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Send code</button>
                 </div>
                 {redeem.requestId && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input className="w-32 rounded-input border border-control px-3 py-2 tracking-widest" inputMode="numeric" maxLength={6} placeholder="6-digit code" value={redeem.code} onChange={(e) => setRedeem({ ...redeem, code: e.target.value })} />
                     <button type="button" disabled={busy || redeem.code.length !== 6} onClick={confirm} className="rounded-full bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50">Confirm</button>
                   </div>
                 )}
-                <div className="flex items-center gap-2 border-t border-gray-100 pt-3">
+                <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
                   <input className="w-32 rounded-input border border-control px-3 py-2" type="number" min={1} placeholder="₹" value={topup} onChange={(e) => setTopup(e.target.value)} />
                   <button type="button" disabled={busy || !topup} onClick={addMoney} className="rounded-full border border-control px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Add money to wallet</button>
                   <span className="text-xs text-gray-500">after the customer pays you</span>

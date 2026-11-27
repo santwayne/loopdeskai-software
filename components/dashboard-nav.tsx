@@ -72,7 +72,7 @@ export function DashboardNav({
               Admin panel
             </Link>
           )}
-          <span className="hidden truncate font-medium text-white sm:inline">{businessName}</span>
+          <span title={businessName} className="hidden max-w-[16rem] truncate font-medium text-white sm:block">{businessName}</span>
           <button onClick={logout} className="font-medium text-brand-200 hover:text-white">
             Log out
           </button>
