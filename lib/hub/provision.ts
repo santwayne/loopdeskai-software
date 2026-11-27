@@ -1,5 +1,6 @@
 import type { Business, ToolAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ensureJoinCode } from "@/lib/onboarding";
 import { generateApiKey } from "@/lib/api-keys";
 import { logEvent } from "@/lib/logger";
 import { getSettings, parseJson } from "@/lib/growth/settings";
@@ -68,6 +69,14 @@ export async function ownWhatsAppFor(biz: Pick<Biz, "locations">): Promise<{ pho
   }
 }
 
+/** The first location's QR join code (made now if it has none yet). */
+async function regularsJoinCode(biz: Pick<Biz, "locations">): Promise<string | null> {
+  const first = biz.locations[0];
+  if (!first) return null;
+  const loc = await prisma.location.findUnique({ where: { id: first.id } });
+  return loc ? ensureJoinCode(loc).catch(() => null) : null;
+}
+
 async function post(tool: Tool, url: string, token: string, body: unknown): Promise<Answer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000);
@@ -123,6 +132,9 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
     tools: businessTools(biz),
     // Distributor Pack: Loyvexa links itself to the client's Korvo company (H5/L4).
     korvo: tool === "LOYVEXA" ? await korvoLinkFor(biz.id) : undefined,
+    // Regulars: the QR join code of the first location, so a Regulars QR ("JOIN <code>")
+    // scanned to the bundle's number is routed here to this business and passed on.
+    joinCode: tool === "REGULARS" ? await regularsJoinCode(biz) : undefined,
     // Sehat Saathi: the hospital's own number, for bed QR codes (null = not connected yet).
     whatsapp: tool === "SEHAT_SAATHI" ? await ownWhatsAppFor(biz) : undefined,
     // Custom bundles (Products & Bundles) turn the follow-ups on with their Growth Manager box.

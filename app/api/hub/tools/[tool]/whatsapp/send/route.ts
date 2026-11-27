@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: { tool: strin
     const body = await req.json().catch(() => null);
     return NextResponse.json(await sendForTool(tool, businessId, body));
   } catch (err) {
-    if (err instanceof ToolWaError) return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
+    if (err instanceof ToolWaError) return NextResponse.json({ error: { code: err.code, message: err.message, ...(err.metaCode ? { metaCode: err.metaCode } : {}) } }, { status: err.status });
     throw err;
   }
 }

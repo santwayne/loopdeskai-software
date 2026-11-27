@@ -33,8 +33,21 @@ import { sharedSender, whatsappSenderFor, windowOpen, type WaSender } from "@/li
  */
 
 /** Tools that may send WhatsApp through the hub. */
-export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA", "sehat-saathi": "SEHAT_SAATHI" };
-const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi" };
+export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA", "sehat-saathi": "SEHAT_SAATHI", regulars: "REGULARS" };
+const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi", REGULARS: "regulars" };
+
+/**
+ * Regulars (separate app, own database) for bundle clients that picked it
+ * (Regulars retest list, 27 Nov 2026): one WhatsApp number for the whole
+ * bundle, so Regulars sends through this gateway like Loyvexa, and every
+ * customer message for such a business that no other tool claims goes to
+ * Regulars (regularsTakesInbound), QR joins included. Regulars gets the whole
+ * WhatsApp message (button / interactive replies) plus the profile name.
+ */
+export const REGULARS_TOOL: Tool = "REGULARS";
+export function regularsTakesInbound(business: Business) {
+  return business.status !== "SUSPENDED" && bundleLive(business) && businessTools(business).includes(REGULARS_TOOL);
+}
 
 /**
  * Sehat Saathi (hospital package) differs from Loyvexa in three ways:
@@ -48,12 +61,13 @@ const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_S
  *    (purpose "whatsapp-media"), only for media the hub forwarded to it.
  * It may also send a WhatsApp catalog button (pharmacy refills).
  */
-const RAW_INBOUND: Tool[] = ["SEHAT_SAATHI"];
+const RAW_INBOUND: Tool[] = ["SEHAT_SAATHI", "REGULARS"];
 export const DEFAULT_INBOUND_TOOL: Tool = "SEHAT_SAATHI";
 const MEDIA_TYPES = ["image", "audio", "document", "video", "sticker"];
 
 export class ToolWaError extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
+  /** metaCode: Meta's error code when WhatsApp refused (e.g. 132001 template missing), so the tool can fall back. */
+  constructor(public status: number, public code: string, message: string, public metaCode?: number) { super(message); }
 }
 
 /** Digits only: "+91 98140-00101" → "919814000101". */
@@ -187,7 +201,7 @@ export async function sendForTool(tool: Tool, businessId: string, body: unknown)
   const r = await graphSend(sender, msg.to, msg.message);
   if (!r.ok || !r.id) {
     await logEvent({ businessId: business.id, source: "WHATSAPP", level: "WARN", message: `${tool} WhatsApp not sent`, meta: { error: r.error, code: r.code } });
-    throw new ToolWaError(502, "WHATSAPP_FAILED", r.error ?? "WhatsApp send failed");
+    throw new ToolWaError(502, "WHATSAPP_FAILED", r.error ?? "WhatsApp send failed", r.code);
   }
   const now = new Date();
   await prisma.usageEvent.create({ data: { businessId: business.id, type: "WHATSAPP_SENT" } });
@@ -230,7 +244,7 @@ async function postToTool(tool: Tool, businessId: string, body: unknown) {
 }
 
 /** A message from one of the tool's people → the tool (its bot answers through sendForTool). */
-export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string }, raw?: Record<string, unknown>, viaLocationId?: string | null) {
+export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string; profileName?: string | null }, raw?: Record<string, unknown>, viaLocationId?: string | null) {
   const phone = waDigits(m.from);
   const now = new Date();
   // A patient's first message (Sehat Saathi): remember them so replies keep coming here.
@@ -252,7 +266,8 @@ export async function forwardInbound(tool: Tool, businessId: string, m: { from: 
     }
   }
   try {
-    await postToTool(tool, businessId, { messages: [wantsRaw ? { ...raw, from: phone } : { from: phone, text: m.text, id: m.id }] });
+    const name = m.profileName ? { profileName: m.profileName } : {};
+    await postToTool(tool, businessId, { messages: [wantsRaw ? { ...raw, from: phone, ...name } : { from: phone, text: m.text, id: m.id, ...name }] });
   } catch (err) {
     await logEvent({ businessId, source: "WHATSAPP", level: "ERROR", message: `Could not pass a WhatsApp message on to ${tool}`, meta: { error: err instanceof Error ? err.message : String(err) } });
   }
@@ -417,7 +432,8 @@ export async function setOptInForTool(tool: Tool, businessId: string, body: unkn
  * The shared Loopdesk number uses WHATSAPP_SHARED_WABA_ID. A location with
  * its own number has no WABA ID saved here yet → 409 NO_WABA.
  */
-export const TOOL_TEMPLATE_PREFIX: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa_", SEHAT_SAATHI: "sehat_" };
+// Regulars sends the same customer templates Loopdesk has ("loopdesk_…").
+export const TOOL_TEMPLATE_PREFIX: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa_", SEHAT_SAATHI: "sehat_", REGULARS: "loopdesk_" };
 
 type MetaTpl = { name: string; language: string; status: string; category?: string; components?: { type: string; text?: string }[] };
 const countVars = (text: string) => new Set(text.match(/\{\{\s*\d+\s*\}\}/g) ?? []).size;
