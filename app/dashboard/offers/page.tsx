@@ -3,10 +3,12 @@ import { getCurrentMember } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { offerParts, sentOutcome } from "@/lib/offers";
 import { OfferComposer } from "@/components/offer-composer";
+import { loopdeskVideoStudioUrl } from "@/lib/offer-media";
 import { OfferActions } from "@/components/offer-actions";
 import { ApprovalLimitsForm } from "@/components/approval-limits-form";
 import { offerTemplatesFor } from "@/lib/restaurant";
 import { SegmentOfferIdeas } from "@/components/segment-offer-ideas";
+import { businessTools } from "@/lib/hub/catalog-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,7 @@ export default async function OffersPage() {
       <SegmentOfferIdeas currency={business.country === "IN" ? "₹" : "$"} />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} templates={offerTemplatesFor(business.sector)} /></div>
+        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} templates={offerTemplatesFor(business.sector)} loopdeskVideoUrl={loopdeskVideoStudioUrl(businessTools(business).includes("VIDEO"))} /></div>
         {isOwner && <ApprovalLimitsForm limits={limits} sector={business.sector} />}
       </div>
 

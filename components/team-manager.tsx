@@ -67,13 +67,13 @@ export function TeamManager({ managers }: { managers: Manager[] }) {
         </table>
       </div>
 
-      <form onSubmit={add} className="space-y-3 rounded-card border border-gray-200 bg-white p-4">
+      <form onSubmit={add} autoComplete="off" className="space-y-3 rounded-card border border-gray-200 bg-white p-4">
         <h2 className="font-medium">Add a manager</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <input className={input} placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className={input} placeholder="Email (their login)" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <input className={input} placeholder="Mobile they use on WhatsApp" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
-          <input className={input} placeholder="Password (8+ characters)" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
+          <input className={input} placeholder="Name" autoComplete="off" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className={input} placeholder="Email (their login)" type="email" autoComplete="off" data-lpignore="true" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          <input className={input} placeholder="Mobile they use on WhatsApp" autoComplete="off" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+          <input className={input} placeholder="Password (8+ characters)" type="password" autoComplete="new-password" data-lpignore="true" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
         </div>
         <p className="text-xs text-gray-500">
           From this mobile they can WhatsApp your business number: <span className="font-mono">add Rahul 98xxxxxxxx</span> to add a customer.

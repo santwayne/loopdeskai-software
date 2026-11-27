@@ -53,3 +53,12 @@ export function adVideoStudioUrl(brief: string, base = process.env.NEXT_PUBLIC_A
   const b = brief.replace(/\s+/g, " ").trim().slice(0, 1500);
   return `${base.replace(/\/+$/, "")}/ads/new${b ? `?kind=video&brief=${encodeURIComponent(b)}` : "?kind=video"}`;
 }
+
+/**
+ * Bug 7 (27 Nov 2026): a client with Video Studio in its plan opens it
+ * through Loopdesk's one-login link (no second password). Clients without
+ * Video Studio get the plain Video Studio link (no button override).
+ */
+export function loopdeskVideoStudioUrl(hasVideoStudio: boolean): string | null {
+  return hasVideoStudio ? "/api/hub/open/video?page=make" : null;
+}
