@@ -16,6 +16,7 @@ import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, par
 import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact } from "@/lib/hub/tool-whatsapp";
 import { handleRatingReply } from "@/lib/feedback";
 import { handleBirthdayReply } from "@/lib/birthday";
+import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
 import { parseReferral, referralLink } from "@/lib/loyalty";
 import { applyReferralOnJoin, ensureReferralCode } from "@/lib/loyalty-db";
 
@@ -245,6 +246,7 @@ export async function POST(req: NextRequest) {
           const optOut = isOptOutMessage(text);
           const now = new Date();
 
+          const wasOptedOut = !!(await prisma.customer.findUnique({ where: { locationId_phone: { locationId: location.id, phone: message.from } }, select: { optedOut: true } }))?.optedOut;
           const customer = await prisma.customer.upsert({
             where: { locationId_phone: { locationId: location.id, phone: message.from } },
             create: {
@@ -272,6 +274,9 @@ export async function POST(req: NextRequest) {
               ...(optOut ? { optedOut: true, optedOutAt: now } : {}),
             },
           });
+
+          // A new STOP: Regulars must stop too (Regulars bug list #1, 27 Nov 2026).
+          if (optOut && !wasOptedOut) await pushOptOutToRegulars(business.id, [customer.phone], true);
 
           const profileName = contactsByWaId.get(message.from)?.trim();
           if (!customer.name && profileName) {
@@ -306,6 +311,8 @@ export async function POST(req: NextRequest) {
           const decision = !optOut && customer.consentStatus === "PENDING" ? parseConsentReply(text) : null;
           if (joining && qrJoin) {
             const joined = await applyJoin(customer, qrJoin.tag, now);
+            // Scanning the QR again after STOP = they want messages again, in Regulars too.
+            if (customer.optedOut && !joined.optedOut) await pushOptOutToRegulars(business.id, [customer.phone], false);
             // Loyalty: "JOIN … REF ABC234" links the friend who shared it; everyone gets their own link.
             let shareLink: string | null = null;
             if (business.loyaltyEnabled) {

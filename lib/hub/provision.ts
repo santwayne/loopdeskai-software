@@ -6,6 +6,7 @@ import { getSettings, parseJson } from "@/lib/growth/settings";
 import { TOOLS, TOOL_META, bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
+import { syncAllOptOutsToRegulars } from "@/lib/hub/regulars-opt-out";
 
 /**
  * Automatic connection: creates (or updates) the business's account in every
@@ -117,6 +118,8 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
       },
     });
     await wireGrowthSettings(biz.id, tool, answer, api);
+    // Regulars bug list #1: numbers that said STOP here are opted out there too.
+    if (tool === "REGULARS" && opts.active) await syncAllOptOutsToRegulars(biz.id);
     return { tool, ok: true, status: answer.status };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

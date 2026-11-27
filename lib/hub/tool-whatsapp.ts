@@ -5,6 +5,7 @@ import { logEvent } from "@/lib/logger";
 import { bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
+import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
 import { graphSend, whatsappLimitReached } from "@/lib/whatsapp-send";
 import { whatsappSenderFor, type WaSender } from "@/lib/whatsapp-sender";
 
@@ -333,6 +334,8 @@ export async function setOptInForTool(tool: Tool, businessId: string, body: unkn
     data: optIn ? { optedOut: false, optedOutAt: null } : { optedOut: true, optedOutAt: now },
   });
   await logEvent({ businessId, source: "WHATSAPP", level: "INFO", message: `${tool}: ${optIn ? "opted back in (START)" : "opted out (STOP)"}`, meta: { to, updated: r.count } });
+  // The same person in Regulars (Regulars bug list #1).
+  await pushOptOutToRegulars(businessId, [to], !optIn);
   return { ok: true, updated: r.count };
 }
 
