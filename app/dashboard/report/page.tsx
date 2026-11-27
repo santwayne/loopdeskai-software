@@ -52,8 +52,8 @@ export default async function ReportPage({ searchParams }: { searchParams: { mon
       </div>
 
       {r.byOutlet.length > 1 && (
-        <div className="overflow-hidden rounded-card border border-gray-200 bg-white">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-4 py-2 font-medium">Outlet</th><th className="px-4 py-2 font-medium">Bills</th><th className="px-4 py-2 font-medium">Revenue</th></tr></thead>
             <tbody className="divide-y divide-gray-100">
               {r.byOutlet.map((o) => <tr key={o.locationId}><td className="px-4 py-2">{o.name}</td><td className="px-4 py-2">{o.bills}</td><td className="px-4 py-2">{fmt(o.revenue)}</td></tr>)}

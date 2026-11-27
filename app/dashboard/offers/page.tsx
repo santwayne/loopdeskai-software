@@ -48,8 +48,8 @@ export default async function OffersPage() {
         {isOwner && <ApprovalLimitsForm limits={limits} sector={business.sector} />}
       </div>
 
-      <div className="overflow-hidden rounded-card border border-gray-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-2 font-medium">#</th>

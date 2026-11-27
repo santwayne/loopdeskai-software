@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { runSegmentationForBusiness } from "@/lib/run-segmentation";
 import { sendReviewRequest } from "@/lib/front-desk";
 import { awardForVisit } from "@/lib/loyalty-db";
+import { logEvent } from "@/lib/logger";
 
 /**
  * Inbound events from another system (POST /api/v1/events).
@@ -179,7 +180,11 @@ export async function ingestEvents(business: BusinessWithLocations, rawEvents: u
       const ev = rawEvents[i] as { type?: string; externalId?: string };
       if (ev?.type !== "VISIT" || !ev.externalId || r.status === "rejected" || r.status === "duplicate") continue;
       const visit = await prisma.visit.findUnique({ where: { businessId_externalId: { businessId: business.id, externalId: ev.externalId } } });
-      if (visit) await awardForVisit(loyaltyBusiness, visit).catch(() => null);
+      // Never swallow this silently (testing bug 4): the bill counted but points didn't.
+      if (visit) await awardForVisit(loyaltyBusiness, visit).catch((err) => logEvent({
+        businessId: business.id, source: "LOYALTY", level: "ERROR", message: "Points for a bill failed",
+        meta: { visitId: visit.id, error: err instanceof Error ? err.message : String(err) },
+      }));
     }
   }
 

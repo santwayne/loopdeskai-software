@@ -99,6 +99,6 @@ test("wiring: webhook handles ratings and birthdays, cron sends them, plain revi
   assert.match(cron, /requestDueFeedback\(now\)/);
   assert.match(cron, /sendBirthdayOffers\(now\)/);
   assert.match(readFileSync("lib/ingest-events.ts", "utf8"), /autoReviewRequest && !fullBusiness\.autoFeedback/);
-  assert.match(readFileSync("lib/new-owner.ts", "utf8"), /input\.sector === "RESTAURANT" \? \{ autoFeedback: true, autoBirthday: true \}/);
+  assert.match(readFileSync("lib/new-owner.ts", "utf8"), /input\.sector === "RESTAURANT" \? \{ autoFeedback: true, autoBirthday: true(, loyaltyEnabled: true)? \}/);
   assert.match(readFileSync("lib/birthday.ts", "utf8"), /if \(!business\.autoBirthday\) return false;/);
 });

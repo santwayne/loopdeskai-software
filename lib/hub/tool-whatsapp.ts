@@ -250,7 +250,9 @@ export async function forwardStatuses(statuses: { id: string; status: string; er
  */
 export async function inboundTool(businessId: string, phone: string, tools: Tool[] = []): Promise<Tool | null> {
   const digits = waDigits(phone);
-  const c = await prisma.hubWaContact.findFirst({ where: { businessId, phone: digits }, orderBy: { lastOutboundAt: "desc" } });
+  // Only tools that are live in this business's bundle: a lapsed or removed
+  // Loyvexa must not keep taking the business's customers' messages.
+  const c = await prisma.hubWaContact.findFirst({ where: { businessId, phone: digits, tool: { in: tools } }, orderBy: { lastOutboundAt: "desc" } });
   if (!c) {
     // Hospital package: a stranger writing to the hospital is a (new) patient.
     // Someone Regulars already talks to stays with Regulars.

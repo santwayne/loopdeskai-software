@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/session";
 import { ingestEvents } from "@/lib/ingest-events";
 import { normalizePhone } from "@/lib/pos";
+import { counterNotes } from "@/lib/counter-notes";
 import { TIER_LABEL, pointsValueRupees } from "@/lib/loyalty";
 import { confirmRedeem, customerTier, ensureReferralCode, startRedeem, walletTopup } from "@/lib/loyalty-db";
 
@@ -76,8 +77,17 @@ export async function POST(req: NextRequest) {
     const result = await ingestEvents({ ...business, locations }, [{ type: "VISIT", phone, name: p.name || undefined, amount: p.amount, externalId, locationId: location.id }], `counter:${user.id}`);
     const r = result.results[0];
     if (r.status === "rejected") return NextResponse.json({ error: r.error }, { status: 400 });
-    const earned = await prisma.loyaltyEntry.findFirst({ where: { customerId: r.customerId, type: "EARN" }, orderBy: { createdAt: "desc" } });
-    return NextResponse.json({ status: r.status, earned: r.status === "duplicate" ? 0 : earned?.points ?? 0, customer: await summary(business, r.customerId) });
+    // Points for exactly this bill (not just the latest EARN row).
+    const visit = await prisma.visit.findUnique({ where: { businessId_externalId: { businessId: business.id, externalId } }, select: { id: true } });
+    const earned = visit ? await prisma.loyaltyEntry.findUnique({ where: { visitId: visit.id }, select: { points: true } }) : null;
+    // Testing bugs 4 + 5: say plainly why points / the rating message don't show up.
+    const fresh = await prisma.business.findUniqueOrThrow({ where: { id: business.id } });
+    return NextResponse.json({
+      status: r.status,
+      earned: r.status === "duplicate" ? 0 : earned?.points ?? 0,
+      notes: counterNotes(fresh, { amount: p.amount, pointsAwarded: !!earned }),
+      customer: await summary(fresh, r.customerId),
+    });
   }
 
   const customer = await prisma.customer.findUnique({ where: { locationId_phone: { locationId: location.id, phone } } });

@@ -9,16 +9,21 @@ export function TeamManager({ managers }: { managers: Manager[] }) {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setNotice(null);
     const res = await fetch("/api/team", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
     const data = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setError(data.error || "Couldn't add the manager. Please try again."); return; }
+    setNotice(data.welcomed
+      ? `${form.name} was added and got a WhatsApp with how to add customers ("add Rahul 98…").`
+      : `${form.name} was added, but the WhatsApp welcome could not be sent (the manager_welcome template may not be approved yet). They can still log in and send "add <name> <mobile>" to the business number.`);
     setForm({ name: "", email: "", phone: "", password: "" });
     router.refresh();
   }
@@ -33,8 +38,9 @@ export function TeamManager({ managers }: { managers: Manager[] }) {
   const input = "w-full rounded-input border border-control px-3 py-2 text-sm";
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-card border border-gray-200 bg-white">
-        <table className="w-full text-sm">
+      {notice && <p role="status" className="rounded-card bg-green-50 px-4 py-2 text-sm text-green-800">{notice}</p>}
+      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
+        <table className="w-full min-w-[520px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-2 font-medium">Manager</th>

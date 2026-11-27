@@ -42,7 +42,8 @@ export type WaTemplateKey =
   | "feedback_request"
   | "birthday_offer"
   | "owner_monthly_report"
-  | "reservation_confirm";
+  | "reservation_confirm"
+  | "manager_welcome";
 
 type Def = {
   key: WaTemplateKey;
@@ -320,6 +321,18 @@ export const WA_TEMPLATE_DEFS: Def[] = [
     bodies: {
       en: "Approval needed for {{1}}: {{2}} wants to send an offer to {{3}} customers. Offer: {{4}} Reply APPROVE {{5}} or REJECT {{5}} on this chat.",
       hinglish: "Approval chahiye, {{1}}: {{2}} {{3}} customers ko offer bhejna chahte hain. Offer: {{4}} Is chat pe APPROVE {{5}} ya REJECT {{5}} likhein.",
+    },
+  },
+  {
+    // Dashboard → Team: a new manager is told how to add customers from WhatsApp (testing bug 6).
+    key: "manager_welcome",
+    category: "UTILITY",
+    audience: "owner",
+    vars: ["manager first name", "business name", "dashboard login link"],
+    examples: { en: ["Rahul", "Glow Salon", "https://app.loopdeskai.wayneesolutions.com/login"] },
+    bodies: {
+      en: "Hi {{1}}, you have been added as a manager of {{2}}. To add a customer, send on this chat: add, then the name and mobile, for example add Priya 9876543210. Dashboard login: {{3}} Reply here if you need help.",
+      hinglish: "Namaste {{1}}, aapko {{2}} ka manager banaya gaya hai. Customer jodne ke liye is chat pe add ke baad naam aur mobile bhejein, jaise add Priya 9876543210. Dashboard login: {{3}} Madad chahiye to yahin reply karein.",
     },
   },
 ];

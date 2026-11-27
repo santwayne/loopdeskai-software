@@ -17,6 +17,7 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
   const [billNo, setBillNo] = useState("");
   const [customer, setCustomer] = useState<Summary | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notes, setNotes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [redeem, setRedeem] = useState<{ kind: "POINTS" | "WALLET"; amount: string; requestId?: string; code: string }>({ kind: "POINTS", amount: "", code: "" });
   const [topup, setTopup] = useState("");
@@ -24,7 +25,7 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
   const money = (v: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(v);
 
   async function call(body: Record<string, unknown>) {
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg(null); setNotes([]);
     const res = await fetch("/api/counter", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ locationId, ...body }) });
     const d = await res.json().catch(() => ({}));
     setBusy(false);
@@ -49,7 +50,8 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
     const d = await call({ action: "bill", phone, name: name || undefined, amount: Number(amount), billNo: billNo || undefined, key: crypto.randomUUID() });
     if (!d) return;
     setCustomer(d.customer);
-    setMsg({ ok: true, text: d.status === "duplicate" ? "This bill number was already recorded." : `Bill recorded${loyalty ? ` · +${d.earned} points` : ""}.` });
+    setMsg({ ok: true, text: d.status === "duplicate" ? "This bill number was already recorded." : `Bill recorded${loyalty && d.earned > 0 ? ` · +${d.earned} points` : ""}.` });
+    setNotes(d.status === "duplicate" ? [] : Array.isArray(d.notes) ? d.notes : []);
     setAmount(""); setBillNo("");
   }
 
@@ -92,6 +94,11 @@ export function CounterDesk({ locations, loyalty, currency }: { locations: { id:
         </div>
         <button disabled={busy} className="rounded-full bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50">Record bill</button>
         {msg && <p role="status" className={msg.ok ? "text-green-700" : "text-red-600"}>{msg.text}</p>}
+        {notes.length > 0 && (
+          <ul className="list-disc space-y-1 pl-5 text-xs text-amber-800">
+            {notes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+        )}
       </form>
 
       <section className="space-y-3 rounded-card border border-gray-200 bg-white p-4 text-sm">

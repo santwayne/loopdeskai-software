@@ -50,9 +50,10 @@ export async function createBundleOwner(input: NewOwnerInput) {
         create: {
           name: input.businessName,
           sector: input.sector,
-          // Restaurants start with the rating loop and birthday offers on
-          // (Restaurant Bundle); the owner can switch them off in Settings.
-          ...(input.sector === "RESTAURANT" ? { autoFeedback: true, autoBirthday: true } : {}),
+          // Restaurants start with the rating loop, birthday offers and points
+          // on (Restaurant Bundle); the owner can switch them off in Settings.
+          // (Testing bug 4: a counter bill gave no points because loyalty was off.)
+          ...(input.sector === "RESTAURANT" ? { autoFeedback: true, autoBirthday: true, loyaltyEnabled: true } : {}),
           // Every business needs at least one Location to connect WhatsApp
           // to (see Location model) — auto-create one named after the
           // business itself so a single-outlet signup needs no extra step.
