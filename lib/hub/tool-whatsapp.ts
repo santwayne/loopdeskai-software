@@ -6,7 +6,7 @@ import { bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
 import { graphSend, whatsappLimitReached } from "@/lib/whatsapp-send";
-import { whatsappSenderFor, type WaSender } from "@/lib/whatsapp-sender";
+import { sharedSender, whatsappSenderFor, windowOpen, type WaSender } from "@/lib/whatsapp-sender";
 
 /**
  * Bundle rule 4 (Nov 2026): one client = one WhatsApp number, and it lives
@@ -130,7 +130,7 @@ export async function verifyToolToken(tool: Tool, authorization: string | null, 
 }
 
 /** The business, its sending location and number, if the tool is live for it. */
-async function senderForTool(businessId: string, tool: Tool): Promise<{ business: Business; location: Location; sender: WaSender }> {
+async function senderForTool(businessId: string, tool: Tool): Promise<{ business: Business & { locations: Location[] }; location: Location; sender: WaSender }> {
   const business = await prisma.business.findUnique({ where: { id: businessId }, include: { locations: { orderBy: { createdAt: "asc" } } } });
   if (!business) throw new ToolWaError(404, "NOT_FOUND", "Business not found");
   if (business.status === "SUSPENDED" || !bundleLive(business) || !businessTools(business).includes(tool)) {
@@ -143,13 +143,40 @@ async function senderForTool(businessId: string, tool: Tool): Promise<{ business
   return { business, location, sender };
 }
 
+/**
+ * Inside the 24-hour window, the number the person last wrote to; otherwise
+ * the business's usual number. Pure apart from the shared-number env (tested).
+ */
+export function replySender(
+  picked: { business: Business & { locations: Location[] }; location: Location; sender: WaSender },
+  contact: { locationId: string | null; lastInboundAt: Date | null } | null,
+  now = new Date(),
+): { location: Location; sender: WaSender } {
+  if (!contact || !windowOpen(contact.lastInboundAt, now)) return picked;
+  if (contact.locationId === null) {
+    const shared = picked.sender.shared ? picked.sender : sharedSender();
+    return shared ? { location: picked.business.locations[0] ?? picked.location, sender: shared } : picked;
+  }
+  const loc = picked.business.locations.find((l) => l.id === contact.locationId);
+  const own = loc ? whatsappSenderFor(loc, picked.business) : null;
+  return loc && own && !own.shared ? { location: loc, sender: own } : picked;
+}
+
 /** Send for a tool. Returns Meta's message id. */
 export async function sendForTool(tool: Tool, businessId: string, body: unknown): Promise<{ messageId: string }> {
   const msg = checkToolMessage(body);
-  const { business, location, sender } = await senderForTool(businessId, tool);
+  const picked = await senderForTool(businessId, tool);
+  const { business } = picked;
+  // Bug report 27 Nov 2026 #5: a reply must leave from the number the person
+  // wrote to. Replying to a dealer who wrote to the shared number from the
+  // business's own number (or the other way round) is, for Meta, a first
+  // message to a stranger → "(#131047) Re-engagement message".
+  const contact = await prisma.hubWaContact.findUnique({ where: { businessId_tool_phone: { businessId: business.id, tool, phone: msg.to } } });
+  const { location, sender } = replySender(picked, contact);
   // Same STOP list everywhere: someone who opted out of this business here gets nothing but OTPs.
   if (!isOtpTemplate(msg.templateName)) {
-    const out = await prisma.customer.findFirst({ where: { businessId: business.id, phone: { in: [msg.to, `+${msg.to}`] }, optedOut: true }, select: { id: true } });
+    // Same spellings as setOptInForTool, so a START clears exactly the rows this check reads.
+    const out = await prisma.customer.findFirst({ where: { businessId: business.id, phone: { in: phoneVariants(msg.to) }, optedOut: true }, select: { id: true } });
     if (out) throw new ToolWaError(409, "OPTED_OUT", "This person sent STOP to the business");
   }
   // The business's monthly WhatsApp allowance covers the tools' messages too (OTPs always go).
@@ -202,14 +229,17 @@ async function postToTool(tool: Tool, businessId: string, body: unknown) {
 }
 
 /** A message from one of the tool's people → the tool (its bot answers through sendForTool). */
-export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string }, raw?: Record<string, unknown>) {
+export async function forwardInbound(tool: Tool, businessId: string, m: { from: string; text: string | null; id: string }, raw?: Record<string, unknown>, viaLocationId?: string | null) {
   const phone = waDigits(m.from);
   const now = new Date();
   // A patient's first message (Sehat Saathi): remember them so replies keep coming here.
+  // viaLocationId = the number they wrote to (null = shared number), so the reply
+  // leaves from that same number (bug report 27 Nov 2026 #5). undefined = unknown.
+  const via = viaLocationId === undefined ? {} : { locationId: viaLocationId };
   await prisma.hubWaContact.upsert({
     where: { businessId_tool_phone: { businessId, tool, phone } },
-    create: { businessId, tool, phone, lastInboundAt: now },
-    update: { lastInboundAt: now },
+    create: { businessId, tool, phone, lastInboundAt: now, ...via },
+    update: { lastInboundAt: now, ...via },
   });
   const wantsRaw = RAW_INBOUND.includes(tool) && !!raw;
   if (wantsRaw) {
@@ -265,6 +295,42 @@ export async function inboundTool(businessId: string, phone: string, tools: Tool
     orderBy: { createdAt: "desc" }, select: { createdAt: true },
   });
   return pickInboundOwner(c, ours?.createdAt ?? null) ? (c.tool as Tool) : null;
+}
+
+/**
+ * Bug report 27 Nov 2026 #2: the owner's phone can also be one of a tool's
+ * people (8264161658 = Loopdesk owner AND Loyvexa "Test Dealer B"). Its STOP /
+ * "hi" were answered with OWNER_NOT_INBOX and never reached Loyvexa. A message
+ * from the owner that is not a plan reply / staff command now goes to the tool
+ * that has written to this phone: in the owner's own business first, else the
+ * business that last wrote to it from the shared number (if that tool is live
+ * there). No tool contact → null (the owner gets OWNER_NOT_INBOX as before).
+ * Only real contacts count — never the hospital "stranger = patient" default.
+ */
+export async function toolRouteForOwner(businessId: string, phone: string, tools: Tool[]): Promise<{ tool: Tool; businessId: string } | null> {
+  const digits = waDigits(phone);
+  const same = tools.length
+    ? await prisma.hubWaContact.findFirst({ where: { businessId, phone: digits, tool: { in: tools } }, orderBy: { lastOutboundAt: "desc" } })
+    : null;
+  const shared = same ? null : await latestSharedToolContact(digits);
+  let sharedLive = false;
+  if (shared && shared.businessId !== businessId) {
+    const other = await prisma.business.findUnique({ where: { id: shared.businessId } });
+    sharedLive = !!other && other.status !== "SUSPENDED" && bundleLive(other) && businessTools(other).includes(shared.tool as Tool);
+  }
+  return pickOwnerToolRoute(businessId, same, shared, sharedLive);
+}
+
+/** Pure part of toolRouteForOwner (unit-tested). */
+export function pickOwnerToolRoute(
+  businessId: string,
+  same: { tool: string } | null,
+  shared: { tool: string; businessId: string } | null,
+  sharedLive: boolean,
+): { tool: Tool; businessId: string } | null {
+  if (same) return { tool: same.tool as Tool, businessId };
+  if (shared && shared.businessId !== businessId && sharedLive) return { tool: shared.tool as Tool, businessId: shared.businessId };
+  return null;
 }
 
 /** Pure part of inboundTool (unit-tested). */

@@ -13,7 +13,7 @@ import { onMessageDeliveryFailed } from "@/lib/growth/delivery";
 import { smsConfigured } from "@/lib/sms";
 import { handleStaffMessage, OWNER_NOT_INBOX } from "@/lib/staff";
 import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, parseJoin, welcomeText } from "@/lib/onboarding";
-import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact } from "@/lib/hub/tool-whatsapp";
+import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact, toolRouteForOwner } from "@/lib/hub/tool-whatsapp";
 import { handleRatingReply } from "@/lib/feedback";
 import { handleBirthdayReply } from "@/lib/birthday";
 import { parseReferral, referralLink } from "@/lib/loyalty";
@@ -226,6 +226,15 @@ export async function POST(req: NextRequest) {
           // The owner answering the daily brief.
           if (text && !joining && (await handleOwnerReply(location, message.from, text).catch(() => false))) continue;
           if (fromOwner && !joining) {
+            // Bug report 27 Nov 2026 #2: anything that isn't a plan reply / staff
+            // command (STOP, START, "hi", "points"…) goes to a tool that has written
+            // to this phone — the owner's number can also be a Loyvexa dealer.
+            const route = await toolRouteForOwner(business.id, message.from, businessTools(business)).catch(() => null);
+            if (route) {
+              await forwardInbound(route.tool, route.businessId, { from: message.from, text: text ?? null, id: message.id }, message as unknown as Record<string, unknown>, null);
+              await logEvent({ businessId: route.businessId, source: "WHATSAPP", level: "INFO", message: `Owner's phone wrote to the shared number — passed on to ${route.tool}`, meta: { from: message.from, text: text?.slice(0, 40) ?? null } });
+              continue;
+            }
             // The owner chatting to the shared number is not a customer, so it
             // never shows in the inbox. Say so, instead of going quiet (testing bug 3).
             await sendOwnerWhatsApp(business, location, message.from, { text: OWNER_NOT_INBOX }).catch(() => false);
@@ -237,7 +246,7 @@ export async function POST(req: NextRequest) {
           // the tool's bot answers through the hub; not a Regulars customer.
           const tool = joining ? null : await inboundTool(business.id, message.from, businessTools(business));
           if (tool) {
-            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id }, message as unknown as Record<string, unknown>);
+            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id }, message as unknown as Record<string, unknown>, isShared ? null : location.id);
             continue;
           }
 
