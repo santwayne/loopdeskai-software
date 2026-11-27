@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getOwnerBusiness } from "@/lib/session";
 import { subscribeInstagramWebhooks } from "@/lib/instagram";
 import { POS_PROVIDERS, newPosToken } from "@/lib/pos";
+import { businessTools } from "@/lib/hub/catalog-rules";
+import { provisionBusiness } from "@/lib/hub/provision";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -56,6 +58,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // A freshly pasted token starts its 60 days now.
     ...(parsed.data.instagramAccessToken ? { instagramTokenRefreshedAt: new Date() } : {}),
     ...(parsed.data.instagramAccountId === null ? { instagramAccessToken: null, instagramUsername: null, instagramTokenRefreshedAt: null } : {}),
+    // A different WhatsApp number: forget the old dialable number.
+    ...(fields.whatsappPhoneNumberId && fields.whatsappPhoneNumberId !== location.whatsappPhoneNumberId ? { whatsappDisplayNumber: null } : {}),
   };
   if (data.instagramAccountId) {
     const taken = await prisma.location.findFirst({ where: { instagramAccountId: data.instagramAccountId, NOT: { id: location.id } }, select: { id: true } });
@@ -71,6 +75,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ((parsed.data.instagramAccountId || parsed.data.instagramAccessToken) && updated.instagramAccountId && updated.instagramAccessToken) {
     const err = await subscribeInstagramWebhooks(updated);
     if (err) instagramWarning = `Saved, but Meta didn't subscribe this account to messages: ${err}`;
+  }
+
+  // Hospital package: Sehat Saathi needs the new number for its bed QR codes.
+  if ((fields.whatsappPhoneNumberId || fields.whatsappAccessToken) && businessTools(business).includes("SEHAT_SAATHI")) {
+    await provisionBusiness(business.id).catch(() => []);
   }
 
   // Never send saved tokens back to the browser.

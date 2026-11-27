@@ -50,3 +50,22 @@ test("Sehat Saathi templates pass Meta's rules, in English, Hindi and Punjabi", 
     assert.equal(t.components[0].example.body_text[0].length, vars, `${t.name}/${t.language} example count`);
   }
 });
+
+test("Sehat Saathi gets the hospital's OWN WhatsApp number for bed QR codes, never the shared one (bug list 27 Nov #5)", async () => {
+  const { ownWhatsAppFor } = await import("../lib/hub/provision");
+  // No location with its own number (shared Loopdesk number only) → nothing sent.
+  assert.equal(await ownWhatsAppFor({ locations: [{ id: "l1", whatsappPhoneNumberId: null, whatsappAccessToken: null }] }), null);
+  // An id without a token can't send: not "own" yet.
+  assert.equal(await ownWhatsAppFor({ locations: [{ id: "l1", whatsappPhoneNumberId: "123", whatsappAccessToken: null }] }), null);
+  // The shared Loopdesk number pasted on a location is still not "own".
+  process.env.WHATSAPP_SHARED_PHONE_NUMBER_ID = "shared-pn";
+  assert.equal(await ownWhatsAppFor({ locations: [{ id: "l1", whatsappPhoneNumberId: "shared-pn", whatsappAccessToken: "tok", whatsappDisplayNumber: "+91 90414 36801" }] }), null);
+  // First location that connected its own number, with its dialable number.
+  assert.deepEqual(
+    await ownWhatsAppFor({ locations: [
+      { id: "l1", whatsappPhoneNumberId: null, whatsappAccessToken: null },
+      { id: "l2", whatsappPhoneNumberId: "pn2", whatsappAccessToken: "tok", whatsappDisplayNumber: "+91 98140 00101" },
+    ] }),
+    { phoneNumberId: "pn2", displayNumber: "+91 98140 00101" },
+  );
+});

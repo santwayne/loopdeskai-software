@@ -39,7 +39,34 @@ type Answer = { accountId: string; status: "ACTIVE" | "PAUSED"; data?: Record<st
 
 export type ProvisionResult = { tool: Tool; ok: boolean; status: string; error?: string; skipped?: string };
 
-type Biz = Business & { owner: { name: string; email: string }; locations: { id: string }[] };
+type BizLocation = { id: string; whatsappPhoneNumberId?: string | null; whatsappAccessToken?: string | null; whatsappDisplayNumber?: string | null };
+type Biz = Business & { owner: { name: string; email: string }; locations: BizLocation[] };
+
+const GRAPH = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || "v21.0"}`;
+
+/**
+ * The business's OWN WhatsApp number (first location that connected one), for
+ * Sehat Saathi's bed QR codes (Sehat Saathi bug list #5, 27 Nov 2026).
+ * Never the shared Loopdesk number: a stranger scanning a bed QR on the shared
+ * number can't be tied to a hospital, and one number's webhook goes to one
+ * server. null until a location connects its own number.
+ */
+export async function ownWhatsAppFor(biz: Pick<Biz, "locations">): Promise<{ phoneNumberId: string; displayNumber: string } | null> {
+  const shared = process.env.WHATSAPP_SHARED_PHONE_NUMBER_ID;
+  const loc = biz.locations.find((l) => l.whatsappPhoneNumberId && l.whatsappAccessToken && l.whatsappPhoneNumberId !== shared);
+  if (!loc?.whatsappPhoneNumberId) return null;
+  if (loc.whatsappDisplayNumber) return { phoneNumberId: loc.whatsappPhoneNumberId, displayNumber: loc.whatsappDisplayNumber };
+  // Only the id is stored when the number is connected: read the dialable number once.
+  try {
+    const res = await fetch(`${GRAPH}/${loc.whatsappPhoneNumberId}?fields=display_phone_number`, { headers: { authorization: `Bearer ${loc.whatsappAccessToken}` } });
+    const data = (await res.json().catch(() => ({}))) as { display_phone_number?: string };
+    if (!res.ok || !data.display_phone_number) return null;
+    await prisma.location.update({ where: { id: loc.id }, data: { whatsappDisplayNumber: data.display_phone_number } });
+    return { phoneNumberId: loc.whatsappPhoneNumberId, displayNumber: data.display_phone_number };
+  } catch {
+    return null;
+  }
+}
 
 async function post(tool: Tool, url: string, token: string, body: unknown): Promise<Answer> {
   const ctrl = new AbortController();
@@ -96,6 +123,8 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
     tools: businessTools(biz),
     // Distributor Pack: Loyvexa links itself to the client's Korvo company (H5/L4).
     korvo: tool === "LOYVEXA" ? await korvoLinkFor(biz.id) : undefined,
+    // Sehat Saathi: the hospital's own number, for bed QR codes (null = not connected yet).
+    whatsapp: tool === "SEHAT_SAATHI" ? await ownWhatsAppFor(biz) : undefined,
     // Custom bundles (Products & Bundles) turn the follow-ups on with their Growth Manager box.
     growth: { missedCallTextBack: biz.customBundleId ? biz.bundleGrowth : biz.frontDeskPlan === "ANSWER_RETURN" || biz.frontDeskPlan === "GROW" },
   };
@@ -162,7 +191,11 @@ async function wireGrowthSettings(businessId: string, tool: Tool, a: Answer, api
 export async function provisionBusiness(businessId: string, opts: { rotateKeys?: boolean } = {}): Promise<ProvisionResult[]> {
   const biz = await prisma.business.findUnique({
     where: { id: businessId },
-    include: { owner: { select: { name: true, email: true } }, locations: { select: { id: true }, orderBy: { createdAt: "asc" } }, toolAccounts: true },
+    include: {
+      owner: { select: { name: true, email: true } },
+      locations: { select: { id: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, whatsappDisplayNumber: true }, orderBy: { createdAt: "asc" } },
+      toolAccounts: true,
+    },
   });
   if (!biz) return [];
   const live = bundleLive(biz) && biz.status !== "SUSPENDED";
