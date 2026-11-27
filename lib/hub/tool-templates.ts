@@ -9,10 +9,16 @@ import { lintBody, sanitizeParam } from "@/lib/whatsapp-templates";
  * Regulars' (loopdesk_…) or Loyvexa's (loyvexa_…).
  *
  * Sehat Saathi sends { name: "sehat_<event>", language: en | hi | pa }.
+ * Loyvexa sends { name: "loyvexa_<event>", language } and reads the approved
+ * language from GET /api/hub/tools/loyvexa/whatsapp/templates (bug report
+ * 27 Nov 2026 #4: these were never defined here, so Meta answered #132001
+ * "Template name does not exist in the translation" for every welcome).
+ * Loyvexa parameters match src/services/notifications.js and ai/messaging.js
+ * in santwayne/loyvexa. en = English, hi = Roman Hinglish (as Loyvexa's bot).
  * Parameters match backend/src/services/* in santwayne/sehat-saathi.
  */
 type ToolLang = "en" | "hi" | "pa";
-type ToolDef = { name: string; tool: string; category: "UTILITY"; bodies: Record<ToolLang, string>; examples: string[] };
+type ToolDef = { name: string; tool: string; category: "UTILITY"; bodies: Partial<Record<ToolLang, string>>; examples: string[] };
 
 export const TOOL_TEMPLATE_DEFS: ToolDef[] = [
   {
@@ -55,6 +61,91 @@ export const TOOL_TEMPLATE_DEFS: ToolDef[] = [
       pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ {{1}}, ਤੁਹਾਡੀ ਦਵਾਈ {{2}} ਕੁਝ ਦਿਨਾਂ ਵਿੱਚ ਖਤਮ ਹੋ ਜਾਵੇਗੀ। ਫਾਰਮੇਸੀ: {{3}}। ਕਿਰਪਾ ਕਰਕੇ ਸਮੇਂ ਸਿਰ ਦੁਬਾਰਾ ਮੰਗਵਾ ਲਓ।",
     },
   },
+  // ── Loyvexa (dealer / mechanic loyalty) ──
+  {
+    name: "loyvexa_participant_created", tool: "LOYVEXA", category: "UTILITY", examples: ["Gill Auto Store", "Shree Ganesh Parts"],
+    bodies: {
+      en: "Hello {{1}}, welcome to {{2}} Rewards! You earn points on every purchase and every product scan. Reply MENU here to see your points.",
+      hi: "Namaste {{1}}, {{2}} Rewards mein aapka swagat hai! Har purchase aur har scan pe points milenge. Points dekhne ke liye yahan MENU likho.",
+    },
+  },
+  {
+    name: "loyvexa_redemption_paid", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "₹500", "raju@upi"],
+    bodies: {
+      en: "Hello {{1}}, {{2}} has been sent to your UPI ID {{3}}. Thank you for being with us.",
+      hi: "Namaste {{1}}, {{2}} aapke UPI {{3}} pe bhej diye gaye hain. Dhanyavaad.",
+    },
+  },
+  {
+    name: "loyvexa_redemption_failed", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "UPI ID not found"],
+    bodies: {
+      en: "Hello {{1}}, your payout could not be completed ({{2}}). Your points are back in your wallet. Please check your UPI ID and try again.",
+      hi: "Namaste {{1}}, aapka payment nahi ho paya ({{2}}). Points wapas wallet mein aa gaye hain. UPI ID check karke dobara try karo.",
+    },
+  },
+  {
+    name: "loyvexa_redemption_rejected", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "1200", "duplicate request"],
+    bodies: {
+      en: "Hello {{1}}, your payout request was not approved and your {{2}} points are back in your wallet. Reason: {{3}}. Reply here for help.",
+      hi: "Namaste {{1}}, aapki payout request approve nahi hui aur aapke {{2}} points wapas wallet mein aa gaye. Wajah: {{3}}. Madad ke liye yahan likho.",
+    },
+  },
+  {
+    name: "loyvexa_scheme_bonus", tool: "LOYVEXA", category: "UTILITY", examples: ["Gill Auto Store", "500", "Diwali Dhamaka"],
+    bodies: {
+      en: "Congratulations {{1}}! You have received {{2}} bonus points in the {{3}} scheme. Reply MENU to see your balance.",
+      hi: "Badhai ho {{1}}! Aapko {{2}} bonus points mile {{3}} scheme mein. Balance dekhne ke liye MENU likho.",
+    },
+  },
+  {
+    name: "loyvexa_purchase_recorded", tool: "LOYVEXA", category: "UTILITY", examples: ["Gill Auto Store", "₹25,000", "250"],
+    bodies: {
+      en: "Hello {{1}}, your purchase of {{2}} has been recorded and {{3}} points were updated in your wallet. Reply MENU to see your balance.",
+      hi: "Namaste {{1}}, aapki {{2}} ki purchase record ho gayi aur {{3}} points wallet mein update hue. Balance ke liye MENU likho.",
+    },
+  },
+  {
+    name: "loyvexa_order_sent", tool: "LOYVEXA", category: "UTILITY", examples: ["ORD-1042", "SO-778", "₹18,400"],
+    bodies: {
+      en: "Your order {{1}} has reached the company (ref {{2}}), total {{3}}. It will be dispatched after approval.",
+      hi: "Aapka order {{1}} company tak pahunch gaya (ref {{2}}), total {{3}}. Approval ke baad dispatch hoga.",
+    },
+  },
+  {
+    name: "loyvexa_order_failed", tool: "LOYVEXA", category: "UTILITY", examples: ["ORD-1042"],
+    bodies: {
+      en: "Your order {{1}} could not reach the company. Our team will contact you shortly.",
+      hi: "Aapka order {{1}} company tak nahi pahuncha. Hamari team aapse jaldi sampark karegi.",
+    },
+  },
+  {
+    name: "loyvexa_points_expiring", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "1,500", "7"],
+    bodies: {
+      en: "Hello {{1}}, {{2}} of your points will expire in the next {{3}} days. Redeem them to UPI from the app before they expire.",
+      hi: "Namaste {{1}}, aapke {{2}} points agle {{3}} din mein expire ho jayenge. Expire hone se pehle app se UPI mein nikaal lo.",
+    },
+  },
+  {
+    name: "loyvexa_points_expired", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "300"],
+    bodies: {
+      en: "Hello {{1}}, {{2}} of your older points have expired. Keep scanning to earn more.",
+      hi: "Namaste {{1}}, aapke {{2}} purane points expire ho gaye. Aur points ke liye scan karte raho.",
+    },
+  },
+  {
+    name: "loyvexa_ai_slab", tool: "LOYVEXA", category: "UTILITY", examples: ["Gill", "Diwali Dhamaka", "₹12,000", "2% bonus", "30 Nov"],
+    bodies: {
+      en: "Hello {{1}}, you are close to the next slab in {{2}}. Just {{3}} more to get {{4}}. Last date: {{5}}. Reply MENU to see your progress.",
+      hi: "Namaste {{1}}, {{2}} mein aap agle slab ke bahut paas ho. Sirf {{3}} aur, aur milega {{4}}. Last date: {{5}}. Progress dekhne ke liye MENU likho.",
+    },
+  },
+  {
+    name: "loyvexa_ai_mechanic", tool: "LOYVEXA", category: "UTILITY", examples: ["Raju", "850", "Double points on brake pads till 30 Nov"],
+    bodies: {
+      en: "Hello {{1}}, you have {{2}} points waiting. Live offer: {{3}}. Scan your next product to keep earning.",
+      hi: "Namaste {{1}}, aapke {{2}} points pade hain. Abhi ka offer: {{3}}. Agla product scan karke points kamate raho.",
+    },
+  },
 ];
 
 const varCount = (text: string) => new Set(text.match(/\{\{\d+\}\}/g) ?? []).size;
@@ -64,7 +155,7 @@ export function toolMetaTemplates(): Array<MetaTemplatePayload & { key: string; 
   const out: Array<MetaTemplatePayload & { key: string; lang: string }> = [];
   for (const d of TOOL_TEMPLATE_DEFS) {
     for (const lang of Object.keys(d.bodies) as ToolLang[]) {
-      const text = d.bodies[lang];
+      const text = d.bodies[lang]!;
       out.push({
         key: `${d.tool.toLowerCase()}:${d.name}`, lang, name: d.name, language: lang, category: d.category,
         components: [{ type: "BODY", text, example: { body_text: [d.examples.slice(0, varCount(text)).map((v) => sanitizeParam(v))] } }],
