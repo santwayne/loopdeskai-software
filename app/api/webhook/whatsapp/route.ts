@@ -13,7 +13,7 @@ import { onMessageDeliveryFailed } from "@/lib/growth/delivery";
 import { smsConfigured } from "@/lib/sms";
 import { handleStaffMessage, OWNER_NOT_INBOX } from "@/lib/staff";
 import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, parseJoin, welcomeText } from "@/lib/onboarding";
-import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact, toolRouteForOwner } from "@/lib/hub/tool-whatsapp";
+import { REGULARS_TOOL, forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact, regularsTakesInbound, toolRouteForOwner } from "@/lib/hub/tool-whatsapp";
 import { handleRatingReply } from "@/lib/feedback";
 import { handleBirthdayReply } from "@/lib/birthday";
 import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
@@ -247,7 +247,14 @@ export async function POST(req: NextRequest) {
           // the tool's bot answers through the hub; not a Regulars customer.
           const tool = joining ? null : await inboundTool(business.id, message.from, businessTools(business));
           if (tool) {
-            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id }, message as unknown as Record<string, unknown>, isShared ? null : location.id);
+            await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id, profileName: contactsByWaId.get(message.from) ?? null }, message as unknown as Record<string, unknown>, isShared ? null : location.id);
+            continue;
+          }
+          // Bundle with Regulars (separate app, own database): its customers —
+          // QR joins, YES/NO answers, inbox messages — belong to Regulars, which
+          // answers through the hub from this same number (Regulars retest, 27 Nov 2026).
+          if (regularsTakesInbound(business)) {
+            await forwardInbound(REGULARS_TOOL, business.id, { from: message.from, text: text ?? null, id: message.id, profileName: contactsByWaId.get(message.from) ?? null }, message as unknown as Record<string, unknown>, isShared ? null : location.id);
             continue;
           }
 
