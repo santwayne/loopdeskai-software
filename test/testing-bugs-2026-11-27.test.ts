@@ -62,3 +62,13 @@ test("bug 6: new managers get the manager_welcome template", () => {
   assert.match(team, /templateKey: "manager_welcome"/);
   assert.match(team, /welcomed/);
 });
+
+test("Regulars bug list #1: STOPs here are passed on to Regulars", () => {
+  const sync = readFileSync("lib/hub/regulars-opt-out.ts", "utf8");
+  assert.match(sync, /\/api\/hub\/opt-out/);
+  assert.match(sync, /signHubToken\("REGULARS", "opt-out", businessId\)/);
+  assert.match(sync, /businessTools\(business\)\.includes\("REGULARS"\)/);
+  assert.match(webhook, /if \(optOut && !wasOptedOut\) await pushOptOutToRegulars\(business\.id, \[customer\.phone\], true\)/);
+  assert.match(readFileSync("lib/hub/provision.ts", "utf8"), /if \(tool === "REGULARS" && opts\.active\) await syncAllOptOutsToRegulars\(biz\.id\)/);
+  assert.match(readFileSync("lib/hub/tool-whatsapp.ts", "utf8"), /pushOptOutToRegulars\(businessId, \[to\], !optIn\)/);
+});

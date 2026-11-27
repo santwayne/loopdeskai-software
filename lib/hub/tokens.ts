@@ -30,7 +30,7 @@ export function toolUrl(tool: Tool, kind: "api" | "app"): string | null {
   return v ? v.replace(/\/$/, "") : null;
 }
 
-export async function signHubToken(tool: Tool, purpose: "provision" | "sso" | "whatsapp-inbound", sub: string, claims: Record<string, unknown> = {}, ttlSeconds = 60) {
+export async function signHubToken(tool: Tool, purpose: "provision" | "sso" | "whatsapp-inbound" | "opt-out", sub: string, claims: Record<string, unknown> = {}, ttlSeconds = 60) {
   const secret = toolSecret(tool);
   if (!secret) throw new Error(`${TOOL_META[tool].secretEnv} is not set (needs 32+ characters)`);
   return new SignJWT({ ...claims, purpose })
