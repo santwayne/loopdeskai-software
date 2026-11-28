@@ -1,7 +1,10 @@
+import { businessTools } from "@/lib/hub/catalog-rules";
 import { getOwnerBusinessOrRedirect } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { GrowthRetryButton } from "@/components/growth-retry-button";
+import { clientError, retryBlockedUntil } from "@/lib/growth/client-error";
 import { GrowthActionCard, PlanNowButton } from "@/components/growth-actions";
 import { GrowthSettingsForm } from "@/components/growth-settings";
 import { DAY, autonomyMap, getSettings, money, parseJson } from "@/lib/growth/settings";
@@ -132,7 +135,18 @@ export default async function GrowthPage() {
                 <tr key={a.id} className="border-t border-gray-100">
                   <td className="px-4 py-2 text-gray-500">{formatDateTime(a.executedAt ?? a.updatedAt, business.country, s.timezone)}</td>
                   <td className="px-4 py-2">{a.title}</td>
-                  <td className="px-4 py-2">{a.status === "DONE" ? "Done" : a.status === "FAILED" ? <span className="text-red-600" title={a.error ?? ""}>Failed</span> : "Running"}</td>
+                  <td className="px-4 py-2">
+                    {a.status === "DONE" ? "Done" : a.status === "FAILED" ? (
+                      // Bug list 28 Nov 2026 (A2/B7): say why in plain words, and offer Retry when it can work.
+                      <div className="space-y-1">
+                        <span className="font-medium text-red-600">Failed</span>
+                        <p className="max-w-xs text-xs text-gray-600">{clientError(a.error)}</p>
+                        {retryBlockedUntil(a)
+                          ? <p className="text-xs text-gray-500">Retry {formatDate(retryBlockedUntil(a)!, business.country, s.timezone)} ke baad</p>
+                          : <GrowthRetryButton id={a.id} />}
+                      </div>
+                    ) : "Running"}
+                  </td>
                   <td className="px-4 py-2">{a.outcome === "WON" ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-800">Won {a.outcomeValue != null ? money(s, a.outcomeValue) : ""}</span> : <span className="text-gray-500">—</span>}</td>
                 </tr>
               ))}
@@ -152,6 +166,7 @@ export default async function GrowthPage() {
           gmbLocationId: s.gmbLocationId, videoStudioClientId: s.videoStudioClientId,
         }}
         autonomy={autonomyMap(s)} tools={tools} managed={business.bundleStatus !== "NONE"}
+        jobs={{ quotes: businessTools(business).includes("FIELD_SERVICE"), missedLeads: tools.wayneRing || businessTools(business).includes("WAYNERING") }}
       />
     </div>
   );

@@ -5,9 +5,10 @@ import { getOwnerBusiness } from "@/lib/session";
 import { executeAction } from "@/lib/growth/executor";
 import { parseJson } from "@/lib/growth/settings";
 import { GROWTH_UPGRADE_MESSAGE, growthAllowed } from "@/lib/growth/access";
+import { retryBlockedUntil } from "@/lib/growth/client-error";
 
 const schema = z.object({
-  decision: z.enum(["approve", "skip"]),
+  decision: z.enum(["approve", "skip", "retry"]),
   /** Optional edit of the customer message / review reply before approving. */
   text: z.string().trim().min(5).max(600).optional(),
 });
@@ -20,6 +21,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const action = await prisma.growthAction.findFirst({ where: { id: params.id, businessId: business.id } });
   if (!action) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Same as Regulars (bug list 28 Nov 2026, A2/B7): a failed action can be sent
+  // again, but not right after WhatsApp held it back (it would fail the same way).
+  if (parsed.data.decision === "retry") {
+    if (action.status !== "FAILED") return NextResponse.json({ error: `Only a failed action can be retried (this one is ${action.status.toLowerCase()})` }, { status: 409 });
+    if (!growthAllowed(business)) return NextResponse.json({ error: GROWTH_UPGRADE_MESSAGE }, { status: 403 });
+    const blocked = retryBlockedUntil(action);
+    if (blocked) return NextResponse.json({ error: `WhatsApp is still holding marketing messages to this customer. Retry after ${blocked.toISOString().slice(0, 10)}.` }, { status: 409 });
+    const payload = parseJson<Record<string, unknown>>(action.payload, {});
+    delete payload.retryAfter;
+    const r = await prisma.growthAction.updateMany({ where: { id: action.id, status: "FAILED" }, data: { status: "APPROVED", error: null, payload: JSON.stringify(payload) } });
+    if (!r.count) return NextResponse.json({ error: "Already retried" }, { status: 409 });
+    return NextResponse.json(await executeAction(action.id));
+  }
   if (action.status !== "PROPOSED") return NextResponse.json({ error: `Already ${action.status.toLowerCase()}` }, { status: 409 });
 
   if (parsed.data.decision === "approve" && !growthAllowed(business)) return NextResponse.json({ error: GROWTH_UPGRADE_MESSAGE }, { status: 403 });

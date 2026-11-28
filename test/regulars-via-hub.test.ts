@@ -15,7 +15,7 @@ test("Regulars retest 27 Nov: Regulars sends through the hub from the bundle's o
 
 test("bundle with Regulars: customer messages (QR joins included) are passed on to Regulars", () => {
   const hook = read("app/api/webhook/whatsapp/route.ts");
-  const at = hook.indexOf("regularsTakesInbound(business)");
+  const at = hook.indexOf("if (regularsTakesInbound(business)) {");
   assert.ok(at > 0, "webhook checks regularsTakesInbound");
   // After the other tools, before Loopdesk's own customer handling.
   assert.ok(hook.indexOf("inboundTool(business.id") < at && at < hook.indexOf("const messageType = classifyMessageType"));
