@@ -72,13 +72,14 @@ test("the pages are hidden from the menu and blocked by address", () => {
   assert.match(mw, /x-pathname/);
 });
 
-test("the tool switcher shows Regulars, enabled only when it's in the plan", () => {
+test("the tool switcher shows Regulars (Loopdesk's own pages), enabled only when it's in the plan", () => {
   const off = switcherItems(["KORVO"]).find((i) => i.id === "regulars");
   const on = switcherItems(["REGULARS"]).find((i) => i.id === "regulars");
   assert.ok(off && on);
   assert.equal(off!.enabled, false);
   assert.equal(on!.enabled, true);
-  assert.equal(on!.href, "/api/hub/open/regulars");
+  assert.equal(on!.href, "/dashboard/customers");
+  assert.equal(on!.external, false);
 });
 
 test("tokens for Regulars match what the Regulars server checks", async () => {

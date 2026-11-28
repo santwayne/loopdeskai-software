@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
 import { DAY, getSettings, money } from "@/lib/growth/settings";
 import { accountData } from "@/lib/hub/provision";
-import { BUNDLE_PLANS, TOOL_META, isBundlePlan, type Tool } from "@/lib/hub/plans";
+import { BUILT_IN_TOOLS, BUNDLE_PLANS, TOOL_META, isBundlePlan, type Tool } from "@/lib/hub/plans";
 import { businessTools, customBundleView, regularsPagesFor } from "@/lib/hub/catalog";
 import { productFitsSector, toolsForSector } from "@/lib/hub/catalog-rules";
 import { TOOL_NAMES } from "@/lib/brand";
@@ -75,7 +75,6 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
       { done: acc("WAYNERING")?.status === "ACTIVE", text: "AI receptionist account created" },
       { done: !!wr.phoneNumber, text: wr.phoneNumber ? `Calls answered on ${wr.phoneNumber}` : "Phone number connected (our team sets this up with you)" },
     ] : []),
-    ...(plan.tools.includes("REGULARS") ? [{ done: acc("REGULARS")?.status === "ACTIVE", text: "Regulars account created" }] : []),
     ...(plan.tools.includes("FIELD_SERVICE") ? [{ done: acc("FIELD_SERVICE")?.status === "ACTIVE", text: `${TOOL_NAMES.jobs} account created` }] : []),
     ...(plan.tools.includes("GMB") ? [{ done: !!gmb.connected, text: gmb.connected ? "Google listing connected" : `Connect your Google listing (open ${TOOL_NAMES.google} below)` }] : []),
     ...(plan.growthManager ? [{
@@ -139,16 +138,15 @@ export async function HubHome({ business, hubMessage }: { business: Business; hu
         )}
         {regularsPages
           ? <Tile name="Customers & inbox" blurb="Everyone who called, texted or booked, on one timeline" status={{ label: "Ready", tone: "bg-green-50 text-green-800" }}
-              links={[{ href: "/dashboard/customers", label: "Customers" }, { href: "/dashboard/inbox", label: "Inbox" }]} />
+              links={[{ href: "/dashboard/customers", label: "Customers" }, { href: "/dashboard/offers", label: "Offers" }, { href: "/dashboard/inbox", label: "Inbox" }]} />
           : <Tile name="Inbox" blurb="WhatsApp and text messages on your number, in one place" status={{ label: "Ready", tone: "bg-green-50 text-green-800" }}
               links={[{ href: "/dashboard/inbox", label: "Inbox" }]} />}
-        {plan.tools.map((t) => {
+        {plan.tools.filter((t) => !BUILT_IN_TOOLS.includes(t)).map((t) => {
           const a = acc(t);
           const st = statusOf(a, live);
           const ready = st.label === "Ready";
           const links =
-            t === "REGULARS" ? [{ href: "/api/hub/open/regulars", label: "Open Regulars ↗", external: true }, { href: "/api/hub/open/regulars?page=offers", label: "Offers ↗", external: true }]
-            : t === "WAYNERING" ? [{ href: "/api/hub/open/wayneRing?page=calls", label: "Calls ↗", external: true }, { href: "/api/hub/open/wayneRing?page=receptionist", label: "Receptionist ↗", external: true }]
+            t === "WAYNERING" ? [{ href: "/api/hub/open/wayneRing?page=calls", label: "Calls ↗", external: true }, { href: "/api/hub/open/wayneRing?page=receptionist", label: "Receptionist ↗", external: true }]
             : t === "FIELD_SERVICE" ? [{ href: "/api/hub/open/field-service", label: "Schedule & jobs ↗", external: true }]
             : t === "GMB" ? [{ href: "/api/hub/open/gmb", label: `Open ${TOOL_NAMES.google} ↗`, external: true }, { href: "/dashboard/growth", label: "AI suggestions" }]
             : t === "LOYVEXA" ? [{ href: "/api/hub/open/loyvexa", label: "Open Loyvexa ↗", external: true }]
