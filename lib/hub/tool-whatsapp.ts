@@ -5,7 +5,6 @@ import { logEvent } from "@/lib/logger";
 import { bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
-import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
 import { graphSend, whatsappLimitReached } from "@/lib/whatsapp-send";
 import { sharedSender, whatsappSenderFor, windowOpen, type WaSender } from "@/lib/whatsapp-sender";
 
@@ -33,21 +32,8 @@ import { sharedSender, whatsappSenderFor, windowOpen, type WaSender } from "@/li
  */
 
 /** Tools that may send WhatsApp through the hub. */
-export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA", "sehat-saathi": "SEHAT_SAATHI", regulars: "REGULARS" };
-const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi", REGULARS: "regulars" };
-
-/**
- * Regulars (separate app, own database) for bundle clients that picked it
- * (Regulars retest list, 27 Nov 2026): one WhatsApp number for the whole
- * bundle, so Regulars sends through this gateway like Loyvexa, and every
- * customer message for such a business that no other tool claims goes to
- * Regulars (regularsTakesInbound), QR joins included. Regulars gets the whole
- * WhatsApp message (button / interactive replies) plus the profile name.
- */
-export const REGULARS_TOOL: Tool = "REGULARS";
-export function regularsTakesInbound(business: Business) {
-  return business.status !== "SUSPENDED" && bundleLive(business) && businessTools(business).includes(REGULARS_TOOL);
-}
+export const WA_TOOLS: Partial<Record<string, Tool>> = { loyvexa: "LOYVEXA", "sehat-saathi": "SEHAT_SAATHI" };
+const TOOL_ISSUER: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa", SEHAT_SAATHI: "sehat-saathi" };
 
 /**
  * Sehat Saathi (hospital package) differs from Loyvexa in three ways:
@@ -61,7 +47,7 @@ export function regularsTakesInbound(business: Business) {
  *    (purpose "whatsapp-media"), only for media the hub forwarded to it.
  * It may also send a WhatsApp catalog button (pharmacy refills).
  */
-const RAW_INBOUND: Tool[] = ["SEHAT_SAATHI", "REGULARS"];
+const RAW_INBOUND: Tool[] = ["SEHAT_SAATHI"];
 export const DEFAULT_INBOUND_TOOL: Tool = "SEHAT_SAATHI";
 const MEDIA_TYPES = ["image", "audio", "document", "video", "sticker"];
 
@@ -415,8 +401,6 @@ export async function setOptInForTool(tool: Tool, businessId: string, body: unkn
     data: optIn ? { optedOut: false, optedOutAt: null } : { optedOut: true, optedOutAt: now },
   });
   await logEvent({ businessId, source: "WHATSAPP", level: "INFO", message: `${tool}: ${optIn ? "opted back in (START)" : "opted out (STOP)"}`, meta: { to, updated: r.count } });
-  // The same person in Regulars (Regulars bug list #1).
-  await pushOptOutToRegulars(businessId, [to], !optIn);
   return { ok: true, updated: r.count };
 }
 
@@ -432,8 +416,7 @@ export async function setOptInForTool(tool: Tool, businessId: string, body: unkn
  * The shared Loopdesk number uses WHATSAPP_SHARED_WABA_ID. A location with
  * its own number has no WABA ID saved here yet → 409 NO_WABA.
  */
-// Regulars sends the same customer templates Loopdesk has ("loopdesk_…").
-export const TOOL_TEMPLATE_PREFIX: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa_", SEHAT_SAATHI: "sehat_", REGULARS: "loopdesk_" };
+export const TOOL_TEMPLATE_PREFIX: Partial<Record<Tool, string>> = { LOYVEXA: "loyvexa_", SEHAT_SAATHI: "sehat_" };
 
 type MetaTpl = { name: string; language: string; status: string; category?: string; components?: { type: string; text?: string }[] };
 const countVars = (text: string) => new Set(text.match(/\{\{\s*\d+\s*\}\}/g) ?? []).size;

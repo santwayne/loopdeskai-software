@@ -59,7 +59,6 @@ test("A1/A4 sync: dummy 98000000xx and Instagram-only never travel; only synced 
   assert.equal(body.messages.length, 1);
   assert.equal(touchesSyncFields({ lastSeenAt: new Date() }), false);
   assert.equal(touchesSyncFields({ optedOut: true }), true);
-  assert.match(read("lib/prisma.ts"), /\$use/);
 });
 
 test("B6: a message promising a different % than the discount box is caught", () => {
@@ -108,20 +107,12 @@ test("B10: Growth settings talk about bills and visits; quote / missed-call opti
   assert.doesNotMatch(read("lib/growth/types.ts"), /their service is due/);
 });
 
-test("A3/B3: a Regulars QR code is looked up in Regulars, and a stray JOIN never goes to Loyvexa", () => {
+test("A3/B3: a stray JOIN never goes to Loyvexa", () => {
   const hook = read("app/api/webhook/whatsapp/route.ts");
-  assert.match(hook, /regularsBusinessForJoinCode\(join\.code\)/);
   assert.match(hook, /const strayJoin = !!qrJoin && !anyJoin/);
   assert.match(hook, /if \(fromOwner && strayJoin\)/);
   // The JOIN check comes before the owner → tool (Loyvexa) route.
   assert.ok(hook.indexOf("if (fromOwner && strayJoin)") < hook.indexOf("toolRouteForOwner(business.id"));
-  assert.match(hook, /hubJoin: true/);
-  assert.match(read("lib/hub/regulars-sync.ts"), /\/api\/hub\/join-code/);
-});
-
-test("A1: Regulars ⇄ Loopdesk sync endpoint and catch-up cron exist", () => {
-  assert.match(read("app/api/hub/tools/[tool]/sync/route.ts"), /verifyToolToken\("REGULARS", req\.headers\.get\("authorization"\), "customer-sync"\)/);
-  assert.match(read("app/api/cron/offers/route.ts"), /flushRegularsSync/);
 });
 
 test("A2/B1/B2: Loopdesk offers show Failed / Partly sent with reasons, and the clean message", () => {

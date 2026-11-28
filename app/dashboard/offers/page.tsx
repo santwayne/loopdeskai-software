@@ -3,9 +3,12 @@ import { getCurrentMember } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { offerParts, sentOutcome } from "@/lib/offers";
 import { OfferComposer } from "@/components/offer-composer";
+import { loopdeskVideoStudioUrl } from "@/lib/offer-media";
 import { OfferActions } from "@/components/offer-actions";
 import { ApprovalLimitsForm } from "@/components/approval-limits-form";
 import { offerTemplatesFor } from "@/lib/restaurant";
+import { SegmentOfferIdeas } from "@/components/segment-offer-ideas";
+import { businessTools } from "@/lib/hub/catalog-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +30,7 @@ export default async function OffersPage() {
   const { business, user, isOwner } = member;
   const offers = await prisma.offer.findMany({
     where: { businessId: business.id },
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { name: true } }, media: { select: { id: true, kind: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -45,8 +48,10 @@ export default async function OffersPage() {
         </p>
       </div>
 
+      <SegmentOfferIdeas currency={business.country === "IN" ? "₹" : "$"} />
+
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} templates={offerTemplatesFor(business.sector)} /></div>
+        <div className="lg:col-span-2"><OfferComposer isOwner={isOwner} limits={limits} templates={offerTemplatesFor(business.sector)} loopdeskVideoUrl={loopdeskVideoStudioUrl(businessTools(business).includes("VIDEO"))} /></div>
         {isOwner && <ApprovalLimitsForm limits={limits} sector={business.sector} />}
       </div>
 
@@ -72,6 +77,10 @@ export default async function OffersPage() {
                 <tr key={o.id} className="align-top">
                   <td className="px-4 py-3 text-gray-500">{o.approvalNo}</td>
                   <td className="px-4 py-3">
+                    {o.media && (o.media.kind === "IMAGE"
+                      // eslint-disable-next-line @next/next/no-img-element -- user upload served by our API
+                      ? <img src={`/api/media/offers/${o.media.id}`} alt="" className="float-right ml-3 h-14 w-14 rounded object-cover" />
+                      : <span className="float-right ml-3 rounded bg-gray-900 px-2 py-1 text-xs text-white">🎬 video</span>)}
                     <p className="font-medium">{o.title}</p>
                     {/* B2: the message itself, not a slice of the "Title (20% off): …" summary. */}
                     {parts.extra && <p className="text-xs font-medium text-brand-700">{parts.extra}</p>}

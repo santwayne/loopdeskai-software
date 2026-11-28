@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getOwnerBusiness } from "@/lib/session";
-import { TOOL_META, bundleLive, type Tool } from "@/lib/hub/plans";
+import { BUILT_IN_TOOLS, TOOL_META, bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolUrl } from "@/lib/hub/tokens";
 
@@ -25,6 +25,11 @@ export async function GET(req: NextRequest, { params }: { params: { tool: string
 
   if (!businessTools(business).includes(tool)) return back("not-in-plan");
   if (!bundleLive(business) || business.status === "SUSPENDED") return back("plan-inactive");
+  // Built into Loopdesk (Regulars, Nov 2026): no other app, just the page here.
+  if (BUILT_IN_TOOLS.includes(tool)) {
+    const pages = TOOL_META[tool].pages ?? {};
+    return NextResponse.redirect(new URL(pages[req.nextUrl.searchParams.get("page") ?? "home"] ?? "/dashboard", req.url));
+  }
   const account = await prisma.toolAccount.findUnique({ where: { businessId_tool: { businessId: business.id, tool } } });
   if (!account?.externalId || account.status !== "ACTIVE") return back("setting-up");
   const app = toolUrl(tool, "app");

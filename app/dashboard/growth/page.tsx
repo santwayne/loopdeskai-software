@@ -71,8 +71,12 @@ export default async function GrowthPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">AI Growth Manager</h1>
           <p className="max-w-2xl text-sm text-gray-600">
-            Every day it reads your calls, texts, quotes, jobs and reviews, picks the actions most likely to bring in work,
-            and asks you before it contacts anyone. {s.enabled ? "It's on." : "It's off — turn it on in the settings below."}
+            {businessTools(business).includes("FIELD_SERVICE")
+              ? <>Every day it reads your calls, texts, quotes, jobs and reviews, picks the actions most likely to bring in work,
+                and asks you before it contacts anyone.</>
+              : <>Every day it reads your customers, their visits, the offers they got, their messages and your reviews,
+                picks the people most likely to come back, and asks you before it contacts anyone.</>}{" "}
+            {s.enabled ? "It's on." : "It's off — turn it on in the settings below."}
           </p>
         </div>
         <PlanNowButton disabled={business.status === "SUSPENDED" || !allowed} />

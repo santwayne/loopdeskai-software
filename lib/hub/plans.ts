@@ -17,6 +17,13 @@ export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" 
 // Order matters: set-up runs in this order, and Loyvexa needs the Korvo
 // company code, so KORVO comes before LOYVEXA (fault H5).
 export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA", "SEHAT_SAATHI", "WAYNE_ADS"];
+/**
+ * Tools that are part of Loopdesk itself, not a separate app (Nov 2026: the
+ * Regulars app was merged into Loopdesk). "Regulars" in a plan or bundle now
+ * just turns on Loopdesk's own customer, offer, QR and loyalty pages; nothing
+ * is set up on another server and no message is passed on.
+ */
+export const BUILT_IN_TOOLS: Tool[] = ["REGULARS"];
 export type Currency = "CAD" | "INR";
 
 export type BundlePlan = {
@@ -63,10 +70,9 @@ export const TOOL_META: Record<Tool, {
   /** Pages the owner may be sent to after single sign-on. */
   pages?: Record<string, string>;
 }> = {
-  // Customer loyalty on WhatsApp (regulars.wayneesolutions.com). A tool like
-  // any other since Nov 2026: only bundles that include it get an account,
-  // and the owner opens it with one click (Regulars /sso). Needs
-  // HUB_SECRET there = HUB_SECRET_REGULARS here.
+  // Customer loyalty on WhatsApp: built into Loopdesk (BUILT_IN_TOOLS). Only
+  // bundles that include it see the customer / offer / QR / loyalty pages.
+  // The env names below are no longer used (the separate Regulars app is gone).
   REGULARS: {
     name: "Regulars", blurb: "Customer loyalty: offers, win-backs and WhatsApp follow-ups", ownerLogin: true,
     apiEnv: "REGULARS_API_URL", appEnv: "REGULARS_APP_URL", secretEnv: "HUB_SECRET_REGULARS",

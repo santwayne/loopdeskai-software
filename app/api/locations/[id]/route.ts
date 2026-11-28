@@ -6,12 +6,15 @@ import { subscribeInstagramWebhooks } from "@/lib/instagram";
 import { POS_PROVIDERS, newPosToken } from "@/lib/pos";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { provisionBusiness } from "@/lib/hub/provision";
+import { verifyWhatsAppNumber } from "@/lib/whatsapp-verify";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   address: z.string().nullable().optional(),
-  whatsappPhoneNumberId: z.string().min(1).optional(),
-  whatsappAccessToken: z.string().min(1).optional(),
+  whatsappPhoneNumberId: z.string().trim().regex(/^\d{6,25}$/, "Phone number ID is only digits, e.g. 109876543210123 (Meta App Dashboard → WhatsApp → API Setup)").optional(),
+  whatsappAccessToken: z.string().trim().min(20, "That doesn't look like a Meta access token").optional(),
+  /** Stop using the location's own number (back to the shared number, if any). */
+  whatsappDisconnect: z.literal(true).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
   // SMS / Front Desk (the texting number itself is assigned by a super admin)
   smsSenderName: z.string().trim().max(40).nullable().optional(),
@@ -46,15 +49,39 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const parsed = updateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const first = parsed.error.issues[0];
+    return NextResponse.json({ error: first?.message ?? "Check the form.", detail: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { newPosToken: wantToken, ...fields } = parsed.data;
+  // Own WhatsApp number (bugs 2 + 17, 27 Nov 2026): check the ID and token with
+  // Meta before saving, so a wrong value is refused instead of "connected".
+  const { whatsappDisconnect, newPosToken: wantToken, ...fields } = parsed.data;
+  let waExtra: { whatsappDisplayNumber?: string | null; whatsappPhoneNumberId?: null; whatsappAccessToken?: null } = {};
+  if (whatsappDisconnect) {
+    waExtra = { whatsappPhoneNumberId: null, whatsappAccessToken: null, whatsappDisplayNumber: null };
+    delete fields.whatsappPhoneNumberId;
+    delete fields.whatsappAccessToken;
+  } else if (fields.whatsappPhoneNumberId || fields.whatsappAccessToken) {
+    const phoneId = fields.whatsappPhoneNumberId ?? location.whatsappPhoneNumberId;
+    const token = fields.whatsappAccessToken ?? location.whatsappAccessToken;
+    if (!phoneId || !token) {
+      return NextResponse.json({ error: "Enter both the Phone number ID and the access token." }, { status: 400 });
+    }
+    const check = await verifyWhatsAppNumber(phoneId, token);
+    if (!check.ok) return NextResponse.json({ error: `Meta didn't accept this number: ${check.error}` }, { status: 400 });
+    if (fields.whatsappPhoneNumberId) {
+      const taken = await prisma.location.findFirst({ where: { whatsappPhoneNumberId: fields.whatsappPhoneNumberId, NOT: { id: location.id } }, select: { id: true } });
+      if (taken) return NextResponse.json({ error: "This WhatsApp number is already connected to another location." }, { status: 409 });
+    }
+    waExtra = { whatsappDisplayNumber: check.displayNumber };
+  }
+
   const data = {
     ...fields,
     // Turning POS sync on (or asking for a new URL) makes a fresh token; off drops it.
     ...((wantToken || (fields.posProvider && !location.posToken)) ? { posToken: newPosToken() } : {}),
     ...(fields.posProvider === null ? { posToken: null, posRestId: null } : {}),
+    ...waExtra,
     // A freshly pasted token starts its 60 days now.
     ...(parsed.data.instagramAccessToken ? { instagramTokenRefreshedAt: new Date() } : {}),
     ...(parsed.data.instagramAccountId === null ? { instagramAccessToken: null, instagramUsername: null, instagramTokenRefreshedAt: null } : {}),

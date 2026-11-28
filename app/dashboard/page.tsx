@@ -24,7 +24,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   // Bundle clients with Calls see the calls WayneRing reported to the hub (H6).
   const hasCalls = isBundle && businessTools(business).includes("WAYNERING");
 
-  const [segmentCounts, totalCustomers, recentCallLogs, connectedLocationCount, recentCalls] = await Promise.all([
+  const [segmentCounts, totalCustomers, recentCallLogs, connectedLocationCount, recentCalls, recentScripts] = await Promise.all([
     prisma.customer.groupBy({
       by: ["segment"],
       where: { businessId: business.id },
@@ -46,7 +46,26 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
           include: { customer: { select: { name: true, phone: true } } },
         })
       : Promise.resolve([]),
+    // Bug 8 (27 Nov 2026): scripts made on the Customers page are activity too, not only calls.
+    prisma.callingScript.findMany({
+      where: { businessId: business.id, isDefault: false },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, customerId: true, createdAt: true },
+    }),
   ]);
+  const scriptCustomers = await prisma.customer.findMany({
+    where: { businessId: business.id, id: { in: recentScripts.map((s) => s.customerId).filter((id): id is string => !!id) } },
+    select: { id: true, name: true, phone: true },
+  });
+  const customerById = new Map(scriptCustomers.map((c) => [c.id, c]));
+  const activity = [
+    ...recentCallLogs.map((log) => ({ id: `call:${log.id}`, who: log.customer.name || log.customer.phone, what: `Call · ${log.status}`, at: log.createdAt })),
+    ...recentScripts.map((sc) => {
+      const c = sc.customerId ? customerById.get(sc.customerId) : null;
+      return { id: `script:${sc.id}`, who: c ? c.name || `+${c.phone}` : sc.title, what: c ? `Script · ${sc.title}` : "Script", at: sc.createdAt };
+    }),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 6);
   // Connected = a location has its own number, or the business sends from the shared number.
   const hasWhatsappConfig = connectedLocationCount > 0 || (usesSharedNumber(business) && !!sharedSender());
 
@@ -112,19 +131,19 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
         <div className="border-b border-gray-100 px-4 py-3">
           <h2 className="font-medium">Recent AI calling activity</h2>
         </div>
-        {recentCallLogs.length === 0 ? (
+        {activity.length === 0 ? (
           <p className="px-4 py-6 text-sm text-gray-500">
             No calling scripts yet. Generate one for a customer on the Customers page.
           </p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {recentCallLogs.map((log) => (
-              <li key={log.id} className="px-4 py-3 flex items-center justify-between text-sm">
-                <div>
-                  <p className="font-medium">{log.customer.name || log.customer.phone}</p>
-                  <p className="text-gray-500">{formatDateTime(log.createdAt, business.country)}</p>
+            {activity.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{a.who}</p>
+                  <p className="text-gray-500">{formatDateTime(a.at, business.country)}</p>
                 </div>
-                <span className="text-xs font-medium text-gray-500">{log.status}</span>
+                <span className="shrink-0 text-xs font-medium text-gray-500">{a.what}</span>
               </li>
             ))}
           </ul>

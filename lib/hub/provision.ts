@@ -1,13 +1,11 @@
 import type { Business, ToolAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { ensureJoinCode } from "@/lib/onboarding";
 import { generateApiKey } from "@/lib/api-keys";
 import { logEvent } from "@/lib/logger";
 import { getSettings, parseJson } from "@/lib/growth/settings";
-import { TOOLS, TOOL_META, bundleLive, type Tool } from "@/lib/hub/plans";
+import { BUILT_IN_TOOLS, TOOLS, TOOL_META, bundleLive, type Tool } from "@/lib/hub/plans";
 import { businessTools } from "@/lib/hub/catalog-rules";
 import { signHubToken, toolSecret, toolUrl } from "@/lib/hub/tokens";
-import { syncAllOptOutsToRegulars } from "@/lib/hub/regulars-opt-out";
 
 /**
  * Automatic connection: creates (or updates) the business's account in every
@@ -70,14 +68,6 @@ export async function ownWhatsAppFor(biz: Pick<Biz, "locations">): Promise<{ pho
   }
 }
 
-/** The first location's QR join code (made now if it has none yet). */
-async function regularsJoinCode(biz: Pick<Biz, "locations">): Promise<string | null> {
-  const first = biz.locations[0];
-  if (!first) return null;
-  const loc = await prisma.location.findUnique({ where: { id: first.id } });
-  return loc ? ensureJoinCode(loc).catch(() => null) : null;
-}
-
 async function post(tool: Tool, url: string, token: string, body: unknown): Promise<Answer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000);
@@ -98,6 +88,7 @@ async function post(tool: Tool, url: string, token: string, body: unknown): Prom
 }
 
 export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolean; rotateKey?: boolean }): Promise<ProvisionResult> {
+  if (BUILT_IN_TOOLS.includes(tool)) return { tool, ok: true, status: opts.active ? "ACTIVE" : "PAUSED", skipped: "Built into Loopdesk" };
   const api = toolUrl(tool, "api");
   if (!api || !toolSecret(tool)) {
     return { tool, ok: false, status: "PENDING", skipped: `${TOOL_META[tool].apiEnv} or ${TOOL_META[tool].secretEnv} not set` };
@@ -133,9 +124,6 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
     tools: businessTools(biz),
     // Distributor Pack: Loyvexa links itself to the client's Korvo company (H5/L4).
     korvo: tool === "LOYVEXA" ? await korvoLinkFor(biz.id) : undefined,
-    // Regulars: the QR join code of the first location, so a Regulars QR ("JOIN <code>")
-    // scanned to the bundle's number is routed here to this business and passed on.
-    joinCode: tool === "REGULARS" ? await regularsJoinCode(biz) : undefined,
     // Sehat Saathi: the hospital's own number, for bed QR codes (null = not connected yet).
     whatsapp: tool === "SEHAT_SAATHI" ? await ownWhatsAppFor(biz) : undefined,
     // Custom bundles (Products & Bundles) turn the follow-ups on with their Growth Manager box.
@@ -160,8 +148,6 @@ export async function provisionTool(biz: Biz, tool: Tool, opts: { active: boolea
       },
     });
     await wireGrowthSettings(biz.id, tool, answer, api);
-    // Regulars bug list #1: numbers that said STOP here are opted out there too.
-    if (tool === "REGULARS" && opts.active) await syncAllOptOutsToRegulars(biz.id);
     return { tool, ok: true, status: answer.status };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -216,6 +202,8 @@ export async function provisionBusiness(businessId: string, opts: { rotateKeys?:
   const wanted = new Set(businessTools(biz));
   const results: ProvisionResult[] = [];
   for (const tool of TOOLS) {
+    // Regulars is built into Loopdesk (customers, offers, QR, loyalty pages): nothing to set up elsewhere.
+    if (BUILT_IN_TOOLS.includes(tool)) continue;
     const has = biz.toolAccounts.find((t) => t.tool === tool);
     if (wanted.has(tool)) results.push(await provisionTool(biz, tool, { active: live, rotateKey: opts.rotateKeys }));
     else if (has && has.status !== "PAUSED" && has.externalId) results.push(await provisionTool(biz, tool, { active: false }));

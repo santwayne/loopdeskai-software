@@ -5,7 +5,6 @@ import { runSegmentationForBusiness } from "@/lib/run-segmentation";
 import { sendReviewRequest } from "@/lib/front-desk";
 import { awardForVisit } from "@/lib/loyalty-db";
 import { logEvent } from "@/lib/logger";
-import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
 
 /**
  * Inbound events from another system (POST /api/v1/events).
@@ -129,7 +128,6 @@ async function applyEvent(business: BusinessWithLocations, ev: InboundEvent, sou
         ...(optOut && !existing.optedOut ? { optedOut: true, optedOutAt: new Date() } : {}),
       },
     });
-    if (optOut && !existing.optedOut) await pushOptOutToRegulars(business.id, [existing.phone], true);
     return { status: "updated" as const, customerId: updated.id };
   }
   const created = await prisma.customer.create({

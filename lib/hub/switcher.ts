@@ -5,10 +5,10 @@ import type { SwitcherItem } from "@/components/app-header";
  * The tool switcher in the top bar: always every Loopdesk AI tool, in this order,
  * so every tool's switcher looks the same. Tools outside the plan are greyed out.
  */
-const ORDER: { id: string; tool?: Tool; name: string; blurb: string; slug?: string }[] = [
+const ORDER: { id: string; tool?: Tool; name: string; blurb: string; slug?: string; href?: string }[] = [
   { id: "home", name: "Home", blurb: "Your plan, inbox and every tool" },
-  // Its own app since Nov 2026 (one of the tools, not the hub).
-  { id: "regulars", tool: "REGULARS", name: "Regulars", blurb: "Customer loyalty on WhatsApp", slug: "regulars" },
+  // Built into Loopdesk (Nov 2026): opens Loopdesk's own Customers page.
+  { id: "regulars", tool: "REGULARS", name: "Regulars", blurb: "Customer loyalty on WhatsApp", slug: "regulars", href: "/dashboard/customers" },
   { id: "calls", tool: "WAYNERING", name: "Calls", blurb: "AI phone agent", slug: "wayneRing" },
   { id: "jobs", tool: "FIELD_SERVICE", name: "Jobs", blurb: "Field service and staff", slug: "field-service" },
   { id: "google", tool: "GMB", name: "Google Profile", blurb: "Reviews and Google listing", slug: "gmb" },
@@ -29,8 +29,8 @@ export function switcherItems(tools: Tool[]): SwitcherItem[] {
       name: t.name,
       blurb: t.blurb,
       enabled,
-      external: true,
-      href: enabled && t.slug ? `/api/hub/open/${t.slug}` : undefined,
+      external: !t.href,
+      href: enabled ? t.href ?? (t.slug ? `/api/hub/open/${t.slug}` : undefined) : undefined,
     };
   });
 }

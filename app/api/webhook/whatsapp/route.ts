@@ -13,13 +13,11 @@ import { onMessageDeliveryFailed } from "@/lib/growth/delivery";
 import { smsConfigured } from "@/lib/sms";
 import { handleStaffMessage, OWNER_NOT_INBOX } from "@/lib/staff";
 import { applyConsentReply, applyJoin, consentAnswerText, parseConsentReply, parseJoin, welcomeText } from "@/lib/onboarding";
-import { REGULARS_TOOL, forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact, regularsTakesInbound, toolRouteForOwner } from "@/lib/hub/tool-whatsapp";
+import { forwardInbound, forwardStatuses, inboundTool, latestSharedToolContact, toolRouteForOwner } from "@/lib/hub/tool-whatsapp";
 import { handleRatingReply } from "@/lib/feedback";
 import { handleBirthdayReply } from "@/lib/birthday";
-import { pushOptOutToRegulars } from "@/lib/hub/regulars-opt-out";
 import { parseReferral, referralLink } from "@/lib/loyalty";
 import { applyReferralOnJoin, ensureReferralCode } from "@/lib/loyalty-db";
-import { regularsBusinessForJoinCode } from "@/lib/hub/regulars-sync";
 
 /** Owner scanned a QR whose code no location has (an old print, or another app's QR). */
 const STRAY_JOIN_TEXT = (code: string) =>
@@ -74,7 +72,7 @@ const META_SAMPLE_PHONE_NUMBER_IDS = ["123456123"];
  *     Regulars itself, or a tool sending through the hub (Loyvexa dealers)
  *  3. the shared-number business this phone is already a customer of
  */
-async function routeShared(from: string, text?: string): Promise<{ location: LocWithBusiness; owner: boolean; regularsJoin?: boolean } | null> {
+async function routeShared(from: string, text?: string): Promise<{ location: LocWithBusiness; owner: boolean } | null> {
   const countries = sharedCountries();
   const phones = [from, `+${from}`];
   const onShared = { whatsappPhoneNumberId: null } as const;
@@ -83,11 +81,6 @@ async function routeShared(from: string, text?: string): Promise<{ location: Loc
   if (join) {
     const joined = await prisma.location.findFirst({ where: { ...onShared, joinCode: join.code }, include: { business: true } });
     if (joined) return { location: joined, owner: false };
-    // Not our code: a Regulars QR? (bug list 28 Nov 2026, A3: Regulars' "JOIN
-    // 9H75JS" fell through to the owner's Loyvexa contact and Loyvexa answered.)
-    const hubBiz = await regularsBusinessForJoinCode(join.code);
-    const loc = hubBiz ? await prisma.location.findFirst({ where: { businessId: hubBiz, ...onShared }, orderBy: { createdAt: "asc" }, include: { business: true } }) : null;
-    if (loc) return { location: loc, owner: false, regularsJoin: true };
   }
 
   // Owners in any country can get their brief from the shared number
@@ -207,12 +200,10 @@ export async function POST(req: NextRequest) {
         const text = message.text?.body ?? message.button?.text ?? message.interactive?.button_reply?.title;
         let location: LocWithBusiness | null = ownLocation;
         let fromOwner = false;
-        let regularsJoin = false;
         if (isShared) {
           const routed = await routeShared(message.from, text);
           location = routed?.location ?? null;
           fromOwner = !!routed?.owner;
-          regularsJoin = !!routed?.regularsJoin;
           if (!location) {
             await logEvent({ source: "WHATSAPP", level: "WARN", message: "Message on the shared number from someone no business has contacted (they must scan a business's QR first, so we know which business they mean)", meta: { from: message.from, text: text?.slice(0, 80) ?? null } });
             continue;
@@ -224,24 +215,16 @@ export async function POST(req: NextRequest) {
 
         try {
           // A QR scan ("JOIN <code>" for this location) is always a customer
-          // joining Regulars, even from a phone a tool (Loyvexa) wrote to last,
+          // joining, even from a phone a tool (Loyvexa) wrote to last,
           // or from the owner's / a manager's own phone while testing.
           // (Testing bugs 1 + 2, 27 Nov 2026: the JOIN went to Loyvexa, which
           // answered with its points link, and no customer was created.)
           const qrJoin = parseJoin(text);
           const joining = !!qrJoin && location.joinCode === qrJoin.code;
-          // A Regulars QR for this business (its code can differ from ours) — A3, 28 Nov 2026.
-          if (qrJoin && !joining && !regularsJoin && regularsTakesInbound(business)) {
-            regularsJoin = (await regularsBusinessForJoinCode(qrJoin.code)) === business.id;
-          }
-          const anyJoin = joining || regularsJoin;
+          const anyJoin = joining;
           // "JOIN <code>" that is nobody's QR: never a tool's message (Loyvexa
           // must not answer it with "aap registered nahi ho").
           const strayJoin = !!qrJoin && !anyJoin;
-          if (regularsJoin && !regularsTakesInbound(business)) {
-            await logEvent({ businessId: business.id, source: "WHATSAPP", level: "WARN", message: "Regulars QR scanned, but Regulars is not live in this business's bundle", meta: { code: qrJoin?.code ?? null } });
-            continue;
-          }
 
           // The owner approving an offer / a manager adding a customer.
           if (text && !anyJoin && (await handleStaffMessage(location, message.from, text, "WHATSAPP").catch(async (err) => {
@@ -280,21 +263,11 @@ export async function POST(req: NextRequest) {
             await forwardInbound(tool, business.id, { from: message.from, text: text ?? null, id: message.id, profileName: contactsByWaId.get(message.from) ?? null }, message as unknown as Record<string, unknown>, isShared ? null : location.id);
             continue;
           }
-          // Bundle with Regulars (separate app, own database): its customers —
-          // QR joins, YES/NO answers, inbox messages — belong to Regulars, which
-          // answers through the hub from this same number (Regulars retest, 27 Nov 2026).
-          if (regularsTakesInbound(business)) {
-            // hubJoin: we matched this QR to the business, so Regulars treats it as a join even if its own code differs.
-            const raw = { ...(message as unknown as Record<string, unknown>), ...(anyJoin ? { hubJoin: true } : {}) };
-            await forwardInbound(REGULARS_TOOL, business.id, { from: message.from, text: text ?? null, id: message.id, profileName: contactsByWaId.get(message.from) ?? null }, raw, isShared ? null : location.id);
-            continue;
-          }
 
           const messageType = classifyMessageType(text);
           const optOut = isOptOutMessage(text);
           const now = new Date();
 
-          const wasOptedOut = !!(await prisma.customer.findUnique({ where: { locationId_phone: { locationId: location.id, phone: message.from } }, select: { optedOut: true } }))?.optedOut;
           const customer = await prisma.customer.upsert({
             where: { locationId_phone: { locationId: location.id, phone: message.from } },
             create: {
@@ -324,7 +297,6 @@ export async function POST(req: NextRequest) {
           });
 
           // A new STOP: Regulars must stop too (Regulars bug list #1, 27 Nov 2026).
-          if (optOut && !wasOptedOut) await pushOptOutToRegulars(business.id, [customer.phone], true);
 
           const profileName = contactsByWaId.get(message.from)?.trim();
           if (!customer.name && profileName) {
@@ -359,8 +331,6 @@ export async function POST(req: NextRequest) {
           const decision = !optOut && customer.consentStatus === "PENDING" ? parseConsentReply(text) : null;
           if (joining && qrJoin) {
             const joined = await applyJoin(customer, qrJoin.tag, now);
-            // Scanning the QR again after STOP = they want messages again, in Regulars too.
-            if (customer.optedOut && !joined.optedOut) await pushOptOutToRegulars(business.id, [customer.phone], false);
             // Loyalty: "JOIN … REF ABC234" links the friend who shared it; everyone gets their own link.
             let shareLink: string | null = null;
             if (business.loyaltyEnabled) {
