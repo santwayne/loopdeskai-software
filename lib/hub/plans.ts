@@ -13,10 +13,10 @@ import { TOOL_NAMES } from "@/lib/brand";
  * Prices: CAD are the published Front Desk prices. INR are a DRAFT — confirm
  * before taking Indian payments.
  */
-export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA" | "SEHAT_SAATHI";
+export type Tool = "REGULARS" | "WAYNERING" | "FIELD_SERVICE" | "GMB" | "VIDEO" | "KORVO" | "LOYVEXA" | "SEHAT_SAATHI" | "WAYNE_ADS";
 // Order matters: set-up runs in this order, and Loyvexa needs the Korvo
 // company code, so KORVO comes before LOYVEXA (fault H5).
-export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA", "SEHAT_SAATHI"];
+export const TOOLS: Tool[] = ["REGULARS", "WAYNERING", "FIELD_SERVICE", "GMB", "VIDEO", "KORVO", "LOYVEXA", "SEHAT_SAATHI", "WAYNE_ADS"];
 export type Currency = "CAD" | "INR";
 
 export type BundlePlan = {
@@ -120,6 +120,17 @@ export const TOOL_META: Record<Tool, {
     name: "Sehat Saathi", blurb: "Patient follow-up on WhatsApp: prescriptions explained, check-ins, urgent flags", ownerLogin: true,
     apiEnv: "SEHAT_SAATHI_API_URL", appEnv: "SEHAT_SAATHI_APP_URL", secretEnv: "HUB_SECRET_SEHAT_SAATHI",
     pages: { home: "/app", flags: "/app/flags", patients: "/app/patients", prescriptions: "/app/prescriptions" },
+  },
+  // Wayne Ads Manager (Nov 2026): Meta (Facebook/Instagram) ads for the business:
+  // 10-minute campaign wizard, hourly checks, "Haan/Na" alerts on WhatsApp, leads.
+  // The hub creates the business + owner, pauses it (and its live ads) when the
+  // bundle lapses, and signs the owner straight into their own panel (/sso).
+  // Needs HUB_SECRET there = HUB_SECRET_WAYNE_ADS here.
+  WAYNE_ADS: {
+    name: "Ads Manager", blurb: "Facebook & Instagram ads: campaigns in 10 minutes, leads, alerts on WhatsApp", ownerLogin: true,
+    apiEnv: "WAYNE_ADS_API_URL", appEnv: "WAYNE_ADS_APP_URL", secretEnv: "HUB_SECRET_WAYNE_ADS",
+    // Wayne Ads sends "/" to the owner's own business panel.
+    pages: { home: "/" },
   },
 };
 

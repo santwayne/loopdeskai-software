@@ -62,3 +62,12 @@ Hospitals and clinics: WhatsApp patient follow-up in Hindi, Punjabi and English 
 - Calls: only with WayneRing in the same bundle (Sehat Saathi calls through WayneRing).
 - Templates: `sehat_*` in en / hi / pa (lib/hub/tool-templates.ts), submitted with the others from Admin → WhatsApp templates.
 - Env: `HUB_SECRET_SEHAT_SAATHI` (= `HUB_SECRET` on Sehat Saathi), `SEHAT_SAATHI_API_URL` (backend), `SEHAT_SAATHI_APP_URL` (dashboard).
+
+## Wayne Ads Manager (Nov 2026)
+
+Facebook & Instagram ads for the business: 10-minute campaign wizard, hourly checks, "Haan/Na" alerts on WhatsApp, leads. Product key `wayne-ads`, connect AUTO, tool `WAYNE_ADS`. Repo: santwayne/Wayneesolutions-wayne-ads-manager.
+
+- Set-up: put Wayne Ads Manager in a custom bundle. `POST {WAYNE_ADS_API_URL}/api/hub/provision` creates the business and its owner (or updates them), and pauses the business and its live ads when the bundle lapses (never deletes).
+- Open: "Open Ads Manager ↗" on the home screen and "Ads Manager" in the tool switcher. The owner lands in their own business panel; they never see Wayne's client list.
+- The client also appears in Wayne's agency dashboard there (`WAYNE_AGENCY_ORG_ID` on the Wayne Ads server).
+- Env: `HUB_SECRET_WAYNE_ADS` (= `HUB_SECRET` on Wayne Ads), `WAYNE_ADS_API_URL`, `WAYNE_ADS_APP_URL` (both https://admanager.wayneesolutions.com).
