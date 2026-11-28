@@ -32,6 +32,7 @@ export const BUILT_IN_PRODUCTS: CatalogProduct[] = [
   { key: "korvo", name: "Korvo", description: "Distributor software: sales hierarchy, orders, Tally", url: null, connect: "AUTO", hubTool: "KORVO", sortOrder: 60 },
   { key: "loyvexa", name: "Loyvexa", description: "Dealer and channel loyalty: points, schemes, rewards", url: null, connect: "AUTO", hubTool: "LOYVEXA", sortOrder: 70 },
   { key: "sehat-saathi", name: "Sehat Saathi", description: "Hospitals & clinics: WhatsApp patient follow-up, check-ins, urgent flags", url: null, connect: "AUTO", hubTool: "SEHAT_SAATHI", sortOrder: 80 },
+  { key: "wayne-ads", name: "Wayne Ads Manager", description: "Facebook & Instagram ads: campaign wizard, leads, WhatsApp alerts", url: null, connect: "AUTO", hubTool: "WAYNE_ADS", sortOrder: 90 },
 ];
 
 /**

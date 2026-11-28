@@ -17,6 +17,7 @@ const ORDER: { id: string; tool?: Tool; name: string; blurb: string; slug?: stri
   // Set up and opened by the hub since Nov 2026 (H9).
   { id: "korvo", tool: "KORVO", name: "Korvo", blurb: "Distributor app with Tally", slug: "korvo" },
   { id: "sehat-saathi", tool: "SEHAT_SAATHI", name: "Sehat Saathi", blurb: "Patient follow-up", slug: "sehat-saathi" },
+  { id: "ads-manager", tool: "WAYNE_ADS", name: "Ads Manager", blurb: "Facebook & Instagram ads", slug: "wayne-ads" },
 ];
 
 export function switcherItems(tools: Tool[]): SwitcherItem[] {
