@@ -31,6 +31,7 @@ export const PATH: Record<Tool, string> = {
   KORVO: "/api/v1/hub/loopdesk/provision",
   LOYVEXA: "/api/hub/provision",
   SEHAT_SAATHI: "/api/hub/provision",
+  WAYNE_ADS: "/api/hub/provision",
 };
 /** Tools that report events back into Loopdesk (the hub) and so get an rk_live_ key. */
 const REPORTS_EVENTS: Tool[] = ["WAYNERING", "FIELD_SERVICE"];
