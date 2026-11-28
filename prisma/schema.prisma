@@ -345,6 +345,11 @@ model Customer {
   /// QR tag scanned on joining, e.g. "T5" for table 5.
   joinTag            String?
 
+  // Loopdesk ⇄ Regulars customer sync (bug list 28 Nov 2026, A1): set by
+  // lib/prisma.ts on every change to a synced field, cleared once Regulars has it.
+  syncPending   Boolean   @default(false)
+  syncChangedAt DateTime?
+
   messages Message[]
   visits   Visit[]
   callLogs CallLog[]
@@ -356,6 +361,7 @@ model Customer {
   @@index([locationId, instagramId])
   @@index([businessId, segment])
   @@index([locationId])
+  @@index([syncPending])
 }
 
 model Message {
@@ -387,10 +393,15 @@ model Message {
   segments    Int?
   /// Inbox: null = unread inbound message.
   readAt      DateTime?
+  /// "regulars" = a copy of a message from Regulars (customer sync, 28 Nov 2026).
+  syncOrigin  String?
+  /// Our own message, not yet copied to Regulars (bundles with Regulars only).
+  syncPending Boolean   @default(false)
 
   @@index([businessId, customerId])
   @@index([locationId])
   @@index([businessId, channel, createdAt])
+  @@index([syncPending])
 }
 
 model Visit {
@@ -856,6 +867,8 @@ model Offer {
   sentAt         DateTime?
   sentCount      Int       @default(0)
   failedCount    Int       @default(0)
+  /// Why some didn't go, in plain words: "WhatsApp not connected (3); Customer said STOP (1)" (bug list 28 Nov 2026, B1).
+  failReasons    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

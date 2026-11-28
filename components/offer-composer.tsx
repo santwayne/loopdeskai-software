@@ -24,6 +24,8 @@ export function OfferComposer({ isOwner, limits, templates = [] }: { isOwner: bo
   const [sendAt, setSendAt] = useState("");
   const [audience, setAudience] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // B6: shown once when the message's % differs from the discount box; the next Save keeps it.
+  const [mismatch, setMismatch] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -47,11 +49,13 @@ export function OfferComposer({ isOwner, limits, templates = [] }: { isOwner: bo
     const res = await fetch("/api/offers", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, message, discountPercent: discount ? Number(discount) : null, freebie, segments, sendAt: sendAt ? new Date(sendAt).toISOString() : null }),
+      body: JSON.stringify({ title, message, discountPercent: discount ? Number(discount) : null, freebie, segments, confirmMismatch: !!mismatch, sendAt: sendAt ? new Date(sendAt).toISOString() : null }),
     });
     const d = await res.json().catch(() => ({}));
     setBusy(false);
+    if (res.status === 409 && d.code === "DISCOUNT_MISMATCH") { setMismatch(d.error); setResult({ ok: false, text: d.error }); return; }
     if (!res.ok) { setResult({ ok: false, text: d.error || "Couldn't save the offer." }); return; }
+    setMismatch(null);
     setResult({
       ok: true,
       text: d.auto
@@ -76,11 +80,11 @@ export function OfferComposer({ isOwner, limits, templates = [] }: { isOwner: bo
         </div>
       )}
       <input className={input} placeholder="Title, e.g. Weekend hair spa offer" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} required />
-      <textarea className={input} rows={3} placeholder="What customers read, e.g. 20% off any hair spa this Saturday and Sunday. Show this message at the counter." value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} required />
+      <textarea className={input} rows={3} placeholder="What customers read, e.g. 20% off any hair spa this Saturday and Sunday. Show this message at the counter." value={message} onChange={(e) => { setMessage(e.target.value); setMismatch(null); }} maxLength={500} required />
       <p className="text-xs text-gray-500">It goes out as: &quot;Hi Priya, a special offer from your business: <i>your message</i> Reply STOP to stop these messages.&quot;</p>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2">Discount
-          <input className="w-20 rounded-input border border-control px-2 py-1" type="number" min={0} max={100} value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" /> %
+          <input className="w-20 rounded-input border border-control px-2 py-1" type="number" min={0} max={100} value={discount} onChange={(e) => { setDiscount(e.target.value); setMismatch(null); }} placeholder="0" /> %
         </label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={freebie} onChange={(e) => setFreebie(e.target.checked)} /> Free item or bonus points</label>
         <label className="flex items-center gap-2">Send after

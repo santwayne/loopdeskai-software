@@ -14,8 +14,8 @@ test("bugs 1 + 2: a QR JOIN is decided before Loyvexa / staff / owner routing", 
   for (const later of ["handleStaffMessage(", "handleOwnerReply(", "inboundTool("]) {
     assert.ok(webhook.indexOf(later) > joinAt, `${later} must come after the JOIN check`);
   }
-  assert.match(webhook, /const tool = joining \? null : await inboundTool\(/);
-  assert.match(webhook, /text && !joining && \(await handleStaffMessage\(/);
+  assert.match(webhook, /const tool = anyJoin \|\| strayJoin \? null : await inboundTool\(/);
+  assert.match(webhook, /text && !anyJoin && \(await handleStaffMessage\(/);
   assert.match(webhook, /if \(joining && qrJoin\)/);
 });
 
@@ -24,7 +24,7 @@ test("bug 2: only tools live in the bundle take a business's inbound messages", 
 });
 
 test("bug 3: the owner writing to the shared number gets told why it isn't in the inbox", () => {
-  assert.match(webhook, /if \(fromOwner && !joining\)/);
+  assert.match(webhook, /if \(fromOwner && !anyJoin\)/);
   assert.match(webhook, /text: OWNER_NOT_INBOX/);
   assert.match(OWNER_NOT_INBOX, /Inbox/);
 });
